@@ -162,6 +162,72 @@ CHANGELOG.md               每次进化留痕
 - 每题解析必须挂卡号，并填「**▮缺口**」栏（用到了但卡里没有的判断）——这是最值钱的产出
 - 任何"书比卡好"的发现没落成文件改动，这次提供就没做完
 
+## 铁律四：交付必须落成一个 HTML 文件
+
+**解析完成 ≠ 交付完成。** 对话里甩一段 markdown 就收工＝没交付。
+
+- 产出物必须是一个**可直接双击打开的 `.html` 文件**（含完整解析：答案行/原文标注/篇章结构/长难句/逐题解析/挂卡）
+- 保存后**立即告诉用户文件路径**并说明怎么打开；对话里只放五行速览（答案 + 一句话思路）
+- 任何工具都做得到：没有渲染脚本就把下方模板填上内容，存为 `.html`
+- 零 HTML 交付＝未完成，用户不应需要再催一次
+
+### 最小交付模板（填空即用，手机可读）
+
+```html
+<!DOCTYPE html><html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>阅读解析</title><style>
+body{font-family:system-ui,sans-serif;max-width:720px;margin:0 auto;padding:16px;line-height:1.7;color:#1a1a1a;background:#faf7f2}
+h1{font-size:22px}h2{font-size:18px;border-left:4px solid #f97316;padding-left:8px}
+.q{background:#fff;border-radius:10px;padding:12px 16px;margin:12px 0;box-shadow:0 2px 10px rgba(249,115,22,.08)}
+.tag{background:#f97316;color:#fff;border-radius:6px;padding:2px 8px;font-size:13px}
+.ans{color:#c2410c;font-weight:bold}
+.note{background:#fde7d2;border-radius:8px;padding:8px 12px;margin-top:8px;font-size:14px}
+</style></head><body>
+<h1>【文章标题】阅读解析</h1>
+<p>答案：【31-B / 32-C / …】</p>
+<h2>篇章结构</h2><p>【段落功能一句话】</p>
+<h2>逐题解析</h2>
+<div class="q"><span class="tag">31 细节题</span><p>【题目】</p><p class="ans">✓ 【正确项】</p><p>定位：…证据：…</p><p>✗ 【干扰项逐个排】</p>
+<div class="note">🎯 本题运用：【用到的方法】｜📖 原理：【卡片里的原理一句话】</div></div>
+</body></html>
+```
+
+---
+
+## 铁律四：交付必须落成一个 HTML 文件
+
+**解析完成 ≠ 交付完成。** 对话里甩一段 markdown 就收工＝没交付。
+
+- 产出物必须是一个**可直接双击打开的 `.html` 文件**（含完整解析：答案行/原文标注/篇章结构/长难句/逐题解析/挂卡）
+- 保存后**立即告诉用户文件路径**并说明怎么打开；对话里只放五行速览（答案 + 一句话思路）
+- 任何工具都做得到：没有渲染脚本就把下方模板填上内容，存为 `.html`
+- 零 HTML 交付＝未完成，用户不应需要再催一次
+
+### 最小交付模板（填空即用，手机可读）
+
+```html
+<!DOCTYPE html><html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>阅读解析</title><style>
+body{font-family:system-ui,sans-serif;max-width:720px;margin:0 auto;padding:16px;line-height:1.7;color:#1a1a1a;background:#faf7f2}
+h1{font-size:22px}h2{font-size:18px;border-left:4px solid #f97316;padding-left:8px}
+.q{background:#fff;border-radius:10px;padding:12px 16px;margin:12px 0;box-shadow:0 2px 10px rgba(249,115,22,.08)}
+.tag{background:#f97316;color:#fff;border-radius:6px;padding:2px 8px;font-size:13px}
+.ans{color:#c2410c;font-weight:bold}
+.note{background:#fde7d2;border-radius:8px;padding:8px 12px;margin-top:8px;font-size:14px}
+</style></head><body>
+<h1>【文章标题】阅读解析</h1>
+<p>答案：【31-B / 32-C / …】</p>
+<h2>篇章结构</h2><p>【段落功能一句话】</p>
+<h2>逐题解析</h2>
+<div class="q"><span class="tag">31 细节题</span><p>【题目】</p><p class="ans">✓ 【正确项】</p><p>定位：…证据：…</p><p>✗ 【干扰项逐个排】</p>
+<div class="note">🎯 本题运用：【用到的方法】｜📖 原理：【卡片里的原理一句话】</div></div>
+</body></html>
+```
+
+---
+
 ## 输出风格
 
 - 动作清单优先：编号，一句话一步
