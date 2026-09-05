@@ -31,3 +31,10 @@
 1. 原文：Critics say exchange students face danger: they are young and targets in a fearful age; however, danger does not stem from borders, and staying home carries its own risks. 错误项：The author admits students abroad are in serious danger（让步当立场）。正确项：The author acknowledges concerns but believes the risks are manageable and outweighed by benefits。
 2. 原文：Despite some uncertainties, the overall outlook is bright and worth trying. 错误项：The author is fully confident in the plan（谦逊说成全信）。正确项：The author is cautiously supportive。
 3. 错误项：The author dismisses critics without evidence（好文章里不会出现——详述理由 = 没有 dismissing）。正确项：The author takes critics' concerns seriously before rebutting them。
+
+## 六、来源与版本
+- 出处：论证方法讲义第八章 规则 37（+39）（任务2 读自 E://论证//正文md//13-part0012.md）
+- 呼应：A023 论证=理由支持结论（让步句陷阱）、B019 转折（信号词层）、B052 推理演绎边界（强度阶梯）
+- scope：通用（高考 / CET4 / CET6 D 篇议论文、态度题、结构题）
+- 写卡人：螺丝
+- 初版：2026-09-01　最后更新：2026-09-01

@@ -72,3 +72,11 @@
 - 第四步：The tests show / In conclusion / To summarize / These findings...
 
 **应用记录**：4 题全部用四步法秒解： 抓第一句 → D (Eating behavior); 用 contrary to 推出相反逻辑 → D (Tall thin persons); 用四步锁定研究目的 → A (To see how she would affect the participants); 末段回扣 → C (How we perceive others)。
+
+## 六、来源与版本
+
+- **出题方材料**：讲义book p060 文章分析 + book p158-p163 文章分析
+- **自建梳理**：螺丝 2026-09-01
+- 相关卡：B034 宏观结构 / B010 极性一致 / core-principles §2 定位 / B042 研究结论优先
+- scope：高考 · **D/C 篇通用** · **研究类说明文专属四步法**
+- 状态：**实战 2 篇，待续跑补充样本**

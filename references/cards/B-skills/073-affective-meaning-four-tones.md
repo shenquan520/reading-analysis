@@ -44,3 +44,10 @@
 | "Mary is bigger than a house." | 选项：Mary 真的比房子大 | 夸张 → 描述 Mary 体胖（常含贬义） |
 | "The film was not bad." | 选项：The author disliked the film | 克制赞许 → 还可以/尚可 |
 | "There isn't a drop of oil in the bottle." | 选项：陈述油瓶是空的（纯事实） | 否定强调 → 请求去买油 |
+
+## 六、来源与版本
+- 出处：《语用学概论》（何自然、冉永平）§6.5.4 通过感情意义表现言语行为（书 245-248，PDF 264-267）
+- 相关卡：B027 弦外之音（明褒实贬）、B070 话语标记语（well 引出克制）、B075 等级含意、A016 言语行为
+- scope：通用（高考 / CET4 / CET6 态度题、修辞题）
+- 写卡人：螺丝（会话 Y）
+- 初版：2026-09-01　最后更新：2026-09-01

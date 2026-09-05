@@ -60,8 +60,8 @@
 > 标志 "and not just 而且不仅仅是" → 重点在前半句 "We are the products of evolution"
 > 后半句 "billions of years ago" = 不是重点（被 and not just 否定）
 
-**讲义要点**：
-> and not just（而且不仅仅是）之后的半句不是重点，重心落在前半句。
+**讲义原文**（P160）：
+> "后半句话的标志'and not just 而且不仅仅是'代表这部分不是重点，重点在前半句。"
 
 ### ② "As ..." = 重点在后半句
 
@@ -72,8 +72,8 @@
 > 标志 "As 随着" 是个伴随性动作 → 重点在主句 "they are finding examples of human evolution"
 > 从句 "scientists look deeper..." = 背景/方式，不是重点
 
-**讲义要点**：
-> As（随着）引出的前半句只是伴随性动作，重心在后面。
+**讲义原文**（P160）：
+> "前半句话的标志'As 随着'是个伴随性的动作，重点在后半句。"
 
 ### ③ 合用：两句合起来 = 主旨
 
@@ -100,3 +100,111 @@
 | not because ... but because ... | 后半句 | "not X but Y" → 重点 Y |
 
 ---
+
+## 六、来源与版本
+
+- 出处：《英语的衔接》第五章—— 连接四类 × 外部/内部二分 + 连接关系总表
+- **2026-09-01 实战补（第五点五节）**：case-022—— and not just / As 标志判重点
+- scope：通用（逻辑题/七选五/段落排序/态度题全适用）
+- 写卡人：螺丝（任务1）
+- 初版：2026-09-01　最后更新：2026-09-01
+
+---
+
+## 六、标志词补强
+
+### 6.1 段首 `though` 标志词
+- **场景**：though 出现在段首，**承上启下 + 重点在逗号之后**
+- **实例**：「Though he acknowledges that engineering works can fail because the person who thought them up or engineered them simply got things wrong, **in this book Dr. Petroski widens his view to consider the larger context** in which such failures occur.」
+- **判定动作**：
+ 1. 看到段首 `Though/Although` → 重点在 `,` 后
+ 2. 找后半句核心动词（如 widens his view = 拓宽视野）
+ 3. 选项是否对应后半句核心动作 → 选是
+- **讲义原文**：「首先注意段首的 though，重点标志词'虽然'告诉你重点信息就在逗号之后」
+
+### 6.2 `thus / therefore` 标志词
+- **场景**：Thus/Therefore 出现 → 后面是**原因/结论**
+- **实例**：「These patterns are **unique to each person**. **Thus**, the keyboard can determine people's identities...」
+- **判定动作**：
+ 1. 看到 `Thus/Therefore/Hence` → 后句 = 因果链上的"果"或"原因归纳"
+ 2. 回前句找"因"或上推主因
+- **讲义原文**：「第二段非常明显的标志词'Thus 所以'就这时发挥作用了。前面写的是'每个人打字的模式都是独一无二的'，答案当然对应 C 选项'打字模式因人而异'」
+
+### 6.3 `also` 标志词
+- **场景**：段落开头 `Also` → 与上段**并列**，两段可视为一个整体
+- **判定动作**：
+ 1. 看到段首 `Also/In addition/Furthermore` → 跳过本段也可能（与上段内容合看）
+ 2. 重要信息分散在两段 → 两段一起定位
+- **讲义原文**：「段首的重要标志词'also'表明这一段与上一段是并列的关系，所以第二、三两段是一个整体」
+
+### 6.4 `;` 分号 = 解释说明
+- **场景**：分号 `;` 出现在句中 → 功能等同冒号/破折号 = **后半句解释前半句**
+- **实例**：「Rainforests have their own perfect system for ensuring their own survival; **the tall trees make a canopy of branches and leaves which protect themselves, smaller plants, and the forest animals from heavy rain, intense dry heat from the sun and strong winds**.」
+- **判定动作**：
+ 1. 看到 `;` → 后半句解释前半句
+ 2. 词义题/细节题答案常在分号后半句
+- **讲义原文**：「你会看到那句话里出现了特殊的标志'分号'，实际上在这里发挥的作用就相当于'冒号'或'破折号'，是在通过后面句子的内容解释前半句里的'their own perfect system 自身完美的系统'」
+- **判定要点**：分号 ≠ 单纯句间分隔，是"解释信号"
+
+### 6.5 `when` 从句 = 条件/前提
+
+- **场景**：题干问“什么让某人同意/决定做某事”时，原文中的 `when` 从句往往不是单纯时间，而是**事件发生的前提条件**
+- **实例**：「She chose to sell a few larger objects that were less often used **when we promised to put the money into her school fund**.」
+- **判定动作**：
+ 1. 题干关键词：agree / decide / choose / be willing to do
+ 2. 回原文找 `when ...` 条件从句 → 即为“同意做某事”的前提
+ 3. 同义替换后对应正确选项
+- **讲义原文**（p225）：「题干问的是‘什么让某人同意做某事’，也就是‘某人在什么条件下同意做某事’，原文中的 `when...` 实际上就是在发挥条件的作用。」
+- **注意**：不要与 donate 等另一事件混淆，要锁定 sell 这一动作的前提
+
+## ⭐ however 双义语法
+
+- **however = "但是"**：必须用逗号断开独立使用（`..., however, ...` / `However, ...`）。
+- **however = "无论如何"**：后**无逗号**直接加形容词/副词引导让步状语从句（`however long it takes` = 无论需要多久；`however clever` = 无论多聪明）。
+- **误判后果**：把 "But however long it takes, ..." 读成"但是+但是"，句子结构全乱。
+- **判定动作**：见 however 先看有无逗号 → 有逗号=转折连词；无逗号+形容词=让步"无论"。
+- **适用题型**：阅读理解·长难句 / 推断题；七选五还原时可用于排除衔接不当选项。
+
+## ⭐ 冒号对等拆半句
+- **规则**：长句中冒号 = 前后对等（解释/总结关系），看懂**任意半句**即可解题，不必逐词啃全句。
+- **适用题型**：阅读理解·长难句细节题；七选五还原中亦可用于快速断句义。
+
+## ⭐ 连词冲突检测 + also 并列要求
+1. **连词冲突**：填入句自带连词（如 Instead）与空后句连词（如 but）**连用不合理** → 排除该选项（七选五形式过滤硬招）。
+2. **not only...but 递进**：空前 not only 倒装句与空后 but 形成递进；填入句内容须与 but 后内容**同级递进**（美观→健康好处）。
+3. **also 并列要求**：选项含 also 时，空位前文必须已有可并列的同类项；没有 → 排（如 F 换花盆也有帮助——前文无并列项）。
+- **适用题型**：七选五还原（主）/ 阅读理解句间关系判断。
+
+## ⭐ the more...the more 锁定半句拼合
+- **规则**：空后为 ", the more comfortable..." 类比例结构 → 填入句必为 "The more..." 开头的另半句；选项中 The more 开头者直接对号（再按主题词终判 A/B）。
+- **适用题型**：七选五还原。
+
+## ⭐ Or 问句并列→格式一致
+- **规则**：空后出现 "Or do you...?" 问句 → 填入句必为**问句**（Or 连接同类句式）；内容上构成"目标 A？还是目标 B？"的选择并列。
+- **适用题型**：七选五还原 / 句间关系。
+
+## ⭐ Just as importantly = 新要点并列标志
+- **规则**：选项以 "Just as importantly, ..." 开头 → 表示**新要点开始**的并列标志；若空位前后内容仍属**同一旧话题**内部（无新要点展开空间）→ 该选项排除。
+- **适用题型**：七选五还原 / 句间关系。
+
+## ⭐ 递进 = 逐步加强的并列
+- **规则**：递进的本质是"逐步加强的并列"——并列结构要求前后**内容性质完全相同**。如 B"how should you motivate yourself?"→ More than that → "how should you stay motivated...?"（问句递进问句、激发递进保持）。
+- **适用题型**：七选五还原 / 句间关系。
+
+## ⭐ in fact = 纠正性衔接
+- **规则**：in fact（实际上）引出对前文的**纠正/反转**——"But even 200 years ago, only a few people could live in cities. **In fact**, nearly everyone lived on farms."（纠正程度：不止少，是几乎没人住城市）。填入句须与 in fact 句构成"被纠正→纠正"关系。
+- **适用题型**：七选五还原 / 句间关系。
+
+---
+
+## ⭐ 与邢福义三分的对照（编者 2026-09-01 终裁 #11）
+
+两套口径映射：Halliday 四类是**英语骨架**，邢福义三分是**中文对照**——
+| Halliday 四类 | 邢福义三分 |
+|---|---|
+| 增补 additive | 并列类（并列/连贯/递进/选择） |
+| 转折 adversative | 转折类（转折/让步/假转） |
+| 因果 causal | 因果类（因果/推断/假设/条件/目的） |
+| 时间 temporal | 并列类·连贯（汉语时间推进归连贯） |
+| （Halliday 无对应） | 转折类·假转 |
+分析英文文本用 Halliday 骨架；与中文经验对照时用邢福义三分。

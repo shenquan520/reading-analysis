@@ -46,3 +46,30 @@
 | It's possible that they were delayed | They were certainly delayed | They may have been delayed |
 | The rules should be stored... | The rules must be... | 有义务但非强制 |
 | I've completed some of the required courses | He has finished the program's coursework | 还有课没修完 |
+
+## 六、来源与版本
+- 出处：《语用学概论》（何自然、冉永平）§3.3.2 等级含意（书 123-125，PDF 142-144）
+- scope：通用（高考 / CET4 / CET6 推断题）
+- 写卡人：螺丝（会话 Y）
+- 初版：2026-09-01　最后更新：2026-09-01
+
+---
+
+## ⭐ 补：虚拟语气 = 反事实（2026-09-02 六级对照批新招）
+
+**could/would have done ... if ... had done** 的句式，说的**不是已发生的事**，而是与事实相反的假设——**事实恰好是它的否定**。
+
+- 例：`could have increased ... if the issue had been addressed earlier` → 事实 = **问题没有早解决**，增长**没有发生**
+- **干扰项手法**：把虚拟当作已发生（选项说 "has increased"）→ 必错
+- 六级高频，四级 8 篇未见——是六级的语法层升级招
+
+---
+
+## ⭐ 对照批六级大批补丁（2026-09-02）
+
+| 子模式 | 规则 | 例 |
+|---|---|---|
+| 语气锚点定态度 | 动作相同态度不同——a bit irritated / like a lamb / comply 这类语气词+明喻才是态度题判据 | Q51-B（缺勤文） |
+| exploit 褒贬看修饰 | 动词态度由副词与宾语定性：cleverly exploits（褒）vs exploit weaknesses（贬） | Q49-B（垃圾文） |
+| allow ≠ determine | 「有助于/允许」与「决定/必不可少」差一整个等级，原词复现+程度替换双陷阱 | Q51（婴儿文） |
+| 双虚拟对撞 | 原文与选项都虚拟时：比对各自假设与原文前提是否一致，假设被原文否掉即错 | Q52（性别薪差文） |

@@ -61,3 +61,12 @@
 | 「Keep a record and evaluate it weekly…take a look at your record. **（5）** If not, take another look at other methods.」（同上） | **C.** A better plan for sleep can help.（泛泛建议，不承接 `If not`） | **E.** If the steps you take are working, keep it up.（与后句 `If not` 构成**正反配对**） |
 
 ---
+
+## 六、来源与版本
+
+- **出题方材料**：七选五讲义**书中相应位置 第 5 条**（"注意时间顺序和时态"）、**书中相应位置 注意**（"七选五大多数的题型都是对策类"）
+- **自建**：螺丝 2026-09-01 —— 讲义只有一句"注意时间顺序和时态"，**"骨架三特征 + 数环定空 + 结果句≠步骤句"为知识库自建**
+- 反向验证：2015 北京原文、2017 新课标3（p23-p24）、2014 新课标1（p21-p22）
+- 相关卡：B005 列举三分式 / B016 句子功能 / B034 宏观结构 / B024 七选五五步法
+- scope：高考 / CET4 / CET6 · **通用**
+- 状态：**已实战检验 3 篇**

@@ -24,3 +24,10 @@
 - P4 "I look forwards to seeing these views taken further... both cases need to..." → 作者与两方均不同
 - P5 "deserves much more serious thinking" → 中立 → Objective ✅
 - 辩论类考得少，**了解套路即可**，不必重仓训练。
+
+## 四、来源与版本
+
+- 出处：讲义文章分析（书中相应位置-359，book p349-350）
+- 关联：B053（让步-反驳=反方段内形状）、B058 十一（评议型变体）、B010（中立判定）、B038（人物代言）
+- scope：高考（北京卷 D 篇曾考）· 适用题型：**阅读理解**全题型（人物观点/段主旨/态度/结构）；不适用七选五还原
+- 写卡人：case-081 · 初版 2026-09-01

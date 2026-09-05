@@ -29,7 +29,7 @@
 1. **缺项设空**：把三分里的第三项挖掉 → 选项里必有一个 `Still others…` 之类。
 2. **多余项伪装**：给一个**看起来像第三项但内容错位**的选项（如把 `Still others enjoy being outdoors` 换成讲别的角度）。
 3. **数字陷阱**：总句说"三种方法"，但正文只展开两种 → 空处**必是第三种**，且**不能重复已展开的**。
-4. **排比破缺**：引号排比/句式排比里挖一个 → 空处必须**与前后项同型**（实战案例 篇 C 的 (1)）。
+4. **排比破缺**：引号排比/句式排比里挖一个 → 空处必须**与前后项同型**（case-002 篇 C 的 (1)）。
 
 ---
 
@@ -60,3 +60,11 @@
 | 「put the heading "Acts of kindness." On this one, list all the positive things you've done…helped a friend…did the ironing…baked cookies…**（3）**」 | **C.** They might even like to have a go at doing the exercise.（第三人称，跳出清单） | **F.** Whatever it is, no matter how small it might seem, write it down.（**清单收束句**） |
 
 ---
+
+## 六、来源与版本
+
+- **出题方材料**：七选五讲义**书中相应位置 常见形式**（"A,B and C…A 和 B 同理""3 种方法/方面（看到数字要格外注意！）"）、**书中相应位置 第 6 条**（"常用句式 some…others…another / one…the other… / one…another…"）
+- 反向验证：2016 新课标2、2022 新高考1（p8）、2023 新高考一（p23）
+- 自建：螺丝 2026-09-01（**"数项数→预测缺项"的操作步骤为知识库自建**）
+- scope：高考 / CET4 / CET6 · **通用**
+- 状态：**已实战检验 3 篇**

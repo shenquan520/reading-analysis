@@ -44,7 +44,7 @@
 | 「The researchers examined submissions, coding experiences into different categories.」+「a pattern of categories ... began to emerge」 | B. explain why the park attracts tourists（焦点错置 park） | C. analyze the main features of the park（与 B 同为 park 焦点，互相支撑） | D. find patterns in the visitors' summaries（编码的直接目的＝发现 pattern） |
 | 「Fruit juices, milk-based drinks and most alcoholic drinks are free of the tax」 | A. Most alcoholic drinks（原文并列免税项） | B/C. Milk-based drinks / Fruit juices（与 A 同属 free of the tax 并列项） | D. Classic Coke（单独接受征税） |
 
-> 讲义原话：「B、C 两个选项是同义选项，应该一起排除」——本卡来自 实战案例 实战提炼。实战案例 进一步补充「原文并列项 → 选项同排除」。
+> 讲义book p039 原话：「B、C 两个选项是同义选项，应该一起排除」——本卡来自 case-007 实战提炼。case-011 进一步补充「原文并列项 → 选项同排除」。
 
 ### 怎么用「原文并列项同排除」
 
@@ -53,3 +53,31 @@
 3. 剩余项（不在并列结构中者）优先回核。
 
 ---
+
+## 五、来源与版本
+
+- **出题方材料**：讲义book p039 解题思路（「同义选项，应该一起排除」）
+- **自建梳理**：螺丝 2026-09-01
+- 相关卡：core-principles §1 排除顺序、B011 复现、B034 宏观结构
+- scope：高考 / CET4 / CET6 · **通用**
+- 状态：**实战 1 篇，待续跑补充样本**
+
+---
+
+## ⭐ 补：方向反转——名词全对动词一换（2026-09-02 六级对照批新招）
+
+同义/等价检查的盲区：**名词部分全部对得上，动词却换了方向**（separate→transform、disrupt→restore）。名词复现制造"等价"错觉，方向在动词上反转。
+
+**做题含义**：等价性比对**必须落到动词/方向词**——名词对上只是入场券，方向对上才算等价；选项与原文动词方向相反 = 直接排除（此招与 B083 第 3 类"方向"联动）。
+
+---
+
+## ⭐ 对照批六级大批补丁（2026-09-02）
+
+| 子模式 | 规则 | 例 |
+|---|---|---|
+| 两半拼贴选项 | 两个名词短语各核一半，错一半即整项错 | Q48-A（团结文） |
+| 广告 vs 研究双声部 | 现象段两个声音（广告说/研究证），选项爱把一方的结论拼成另一方的主张——先分声音再对方向 | Q46（垃圾文） |
+| 否定词在谓语里 | not...but... 结构的方向反转最隐蔽：the only fix is not X but Y | Q55-A（美的文） |
+| 描述 ≠ 工具价值 | more than just X 是对照描述，不能改成「避免 X 的不可或缺手段」——描述升格成手段=等价性错位 | Q50-D（团结文） |
+| 点名句优先 | problem 点名在前、成因假说在后——呈现顺序别倒置成因果 | Q52-D（团结文） |

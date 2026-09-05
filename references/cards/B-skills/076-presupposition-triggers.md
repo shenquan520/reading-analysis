@@ -31,7 +31,7 @@
 
 1. **细节题偷换前提**：原文 "John stopped smoking"（前提：以前抽）→ 干扰项 "John never smoked"；触发语给出的免费事实被推翻 = 必错
 2. **推断题考"作者认为什么是当然的"**：分裂句 "It was X that..." / 疑问句的预设，作者把它当作共识写给你
-3. **引述陷阱（命题态度动词阻隔）**：believe / say / think / dream 后的从句**作者不背书**——"Researchers say..." ≠ 事实成立
+3. **引述陷阱（命题态度动词阻隔）**：believe / say / think / dream 后的从句**作者不背书**——"Researchers say..." ≠ 事实成立（书 195）
 4. **取消陷阱**：触发语前提可被后续话语取消（in fact he didn't even try / because in fact she never did）——先扫全句再收信息
 
 ## 三、逻辑（怎么判定）
@@ -56,3 +56,15 @@
 | She forgot to lock the door | She locked the door on purpose | 她本应锁门但没锁 |
 | Critics accused the film of being dull | The film is dull (作者认定) | 只是"被指控"，作者未必认同 |
 | Mary believes she has an ulcer | Mary has an ulcer | 只是 Mary 的信念 |
+
+## 六、来源与版本
+- 出处：《语用学概论》（何自然、冉永平）§5.3.1 前提触发语（书 179-182，PDF 198-201）、§5.4.2 投射（书 193-196）
+- 相关卡：A022 预设（主卡）、B027 弦外之音、B042 研究结论先行、B075 等级含意（可取消性同构）
+- scope：通用（高考 / CET4 / CET6 细节题、推断题）
+- 写卡人：螺丝（会话 Y）
+- 初版：2026-09-01　最后更新：2026-09-01
+
+## ⭐ 补遗：焦点（重音）也触发前提（2026-09-01 遗珠批，书 178）
+
+同一句话**重音位置不同，前提不同**：*John seduced Mary* 三种重读 = 三个不同前提（谁干的 / 干了什么 / 对象是谁）。口语里的对比重音（John **didn't** cheat）同理——书面语中斜体/大写/强调结构就是"重音转写"。**七选五/句意题遇到强调结构，先问它针对前文哪一点做对比**。
+另外：**all 触发"至少三个"前提**（书 177）——All my students are bright 暗示学生人数 ≥3；小众但偶尔考到的细节。

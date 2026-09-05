@@ -16,7 +16,7 @@
 | **still** | 规劝（尽量搞好关系） | "Still, he's your new boss." |
 | **well** | 委婉估计、好自为之 | "Well, he's your new boss." |
 
-汉语同构：「你比以前胖多了」配 可不是嘛=附和 / 真的=断言 / 哎呀=惊讶 / 注意=警告 / 不管怎样=劝告。
+汉语同构：「你比以前胖多了」配 可不是嘛=附和 / 真的=断言 / 哎呀=惊讶 / 注意=警告 / 不管怎样=劝告（书 136-137 例 92）。
 
 ## 二、考点（考试怎么考）
 
@@ -45,3 +45,10 @@
 | "Well, it's an interesting idea."（评价平淡+well 缓和） | 选项 "The author strongly supports the idea" | 客气但保留（lukewarm） |
 | "Still, the experiment has flaws."（前文大夸实验） | 选项 "The experiment is a complete failure" | 承认价值+指出缺陷（reserved） |
 | "After all, he is only a beginner." | 选项 "The author is angry at the beginner" | 宽解/建议体谅，非愤怒 |
+
+## 六、来源与版本
+- 出处：《语用学概论》（何自然、冉永平）§3.3.3 不确定性（书 135-137，PDF 154-156）
+- 互证：B056 态度方向、B019 转折标记词
+- scope：通用（高考 / CET4 / CET6 态度题、推断题）
+- 写卡人：螺丝（会话 Y）
+- 初版：2026-09-01　最后更新：2026-09-01

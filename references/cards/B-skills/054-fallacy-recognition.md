@@ -35,3 +35,18 @@
 1. 原文：Some say the policy is useless; however, data show... 错误项：Policy supporters are naive idealists（人身攻击/扣帽子）。正确项：The author rejects the criticism with data。
 2. 选项：Either we ban all cars or accept endless pollution. ——原文从未二选一（假二难 + 稻草人）。
 3. 原文：The program is successful because it works well. 错误项（若作推理题）：The program has clear evidence of success（复述结论）。正确项：The passage gives no independent evidence of success。
+
+## 六、来源与版本
+- 出处：论证方法讲义附录一 常见论证谬误（21 项；任务2 读自 E://论证//正文md//16-part0015.md）
+- 呼应：B050 举例五问（以偏概全/背景率）、B051 因果四解释（错为因果/肯定后件）、B052 演绎边界（非法形式）、B053 让步反驳（稻草人）、规则 5（诱导性语言）
+- scope：通用（高考 / CET4 / CET6 全题型干扰项识别）
+- 写卡人：螺丝
+- 初版：2026-09-01　最后更新：2026-09-01
+
+## 七、⭐ re- 类前缀动作有源性检验
+- **规则**：选项含 re-/again 类"再次/重新"动作（如 **re**define your role）→ 原文必须先有**首次动作**（"定义角色"）；原文连首次动作都没有 = 无中生有变体。
+- **适用题型**：七选五还原 / 阅读理解全题型干扰项识别。
+
+## 八、⭐ 常理检验（荒谬内容排除）
+- **规则**：选项内容违背**常识逻辑**→ 必非原文。检验动作：把选项语义推到现实场景自问。常用于七选五干扰项与阅读理解细节题。
+- **适用题型**：七选五还原 / 阅读理解细节题。

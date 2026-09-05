@@ -32,3 +32,15 @@
 1. 原文：Studies show meditation is linked to calmness. 错误项：Meditation makes people calm（方向偷换）。正确项：Calm people may be more likely to meditate（方向反转的可能）。
 2. 原文：Front-row students get better grades. 错误项：Sitting in front improves grades（忽略第三变量）。正确项：Motivated students tend to sit in front and score higher。
 3. 原文：Most smokers who quit report better sleep, though some feel more restless. 错误项：Quitting smoking harms sleep（个别反例推翻主因）。正确项：Quitting is usually followed by better sleep, with exceptions。
+
+## 六、来源与版本
+- 出处：论证方法讲义第五章 因果论证，规则 18-21（任务2 读自 E://论证//正文md//10-part0009.md）
+- 呼应：B042 研究结论优先法（上游定位）、B043 类比属性抽象（同属论证方式家族）
+- scope：通用（高考 / CET4 / CET6 研究结论类、细节推断题）
+- 写卡人：螺丝
+- 初版：2026-09-01　最后更新：2026-09-01
+
+## ⭐ 弱因果词警示
+- **规则**：原文用弱因果措辞（"contributes to" / "is associated with" 相关/有贡献）≠ 因果必然——被选项/转述升级为 "must lead to / causes"（必然导致）即**误导性语言**，须警惕（73 题段落主题原文：this does not mean that a certain course must lead to a certain result）。
+- **配套**：core §1 因果倒置/强加因果；K004（明确因果链才可硬判）。
+- **适用题型**：阅读理解细节/推断题 + 七选五内容核验。

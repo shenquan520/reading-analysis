@@ -17,6 +17,6 @@
 **英文名别名**：Even-Worse Intensification Marker / Progressive Negation
 **scope**：高考（议论文 / 推断题）
 
-**实战验证**：2021 全国甲卷 D 篇—— "Even worse" 锁定"信念→行动"递进
+**实战验证**：2021 全国甲卷 D 篇 —— "Even worse" 锁定"信念→行动"递进
 
-> 来源：实战案例。由续跑会话从 case 内嵌「【新建】B046」小节重建落盘。
+> 来源：case-016。由续跑会话从 case 内嵌「【新建】B046」小节重建落盘。
