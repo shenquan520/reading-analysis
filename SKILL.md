@@ -43,10 +43,11 @@ agent_created: true
 
 ### 铁律二：分析必检索
 分析新题之前，先读：
-1. `references/cases/INDEX.md` — 找相似旧案对照
-2. `references/my-patterns.md` — 对照这个人反复踩的坑
+1. `references/cards/INDEX.md` — **检索本题用得上哪些方法卡**（硬性步骤，跳过＝零挂卡＝不合格交付）
+2. `references/cases/INDEX.md` — 找相似旧案对照
+3. `references/my-patterns.md` — 对照这个人反复踩的坑
 
-不检索就直接分析，等于每次从零开始，知识库白攒。
+不检索就直接分析，等于每次从零开始，知识库白攒。**解析里一张卡号都不出现的交付＝没有使用本知识库，只用了模型自己的底子。**
 
 ### 铁律三：复盘必提炼
 `references/cases/` 每满 10 个案例，主动复盘一次：统计错误类型分布，把重复出现的写成规则，追加进 `my-patterns.md`。
@@ -73,7 +74,7 @@ CHANGELOG.md               每次进化留痕
 ## 工作流
 
 ### A. 分析一道题 / 一篇阅读（自用模式 deep）
-1. **先检索**：读 `cases/INDEX.md` + `my-patterns.md`
+1. **先检索**：读 `cards/INDEX.md`（选卡）+ `cases/INDEX.md` + `my-patterns.md`
 2. **读题**：先读题干判题型，**不先看选项**（避免被干扰项带跑）
 3. **定位**：按 `core-principles.md` 的定位规则回原文找证据句
 4. **判选项**：逐项标注构造（正确项特征 / 干扰项类型，见 `cards/B-skills/` B083）
@@ -89,6 +90,7 @@ CHANGELOG.md               每次进化留痕
 【干扰项 A】张冠李戴：把 authors 的行为安到 readers 头上
 【干扰项 B】无中生有：原文从未提过 ...
 【用到原理】推断一步原则 / 干扰项-张冠李戴
+【挂卡】B017 / B083-干扰项-张冠李戴 / A032（逐题标注所用卡号，零挂卡＝不合格交付）
 【历史对照】实战案例 同类错误，你上次栽在 ...
 ```
 
