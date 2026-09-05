@@ -203,36 +203,27 @@ h1{font-size:22px}h2{font-size:18px;border-left:4px solid #f97316;padding-left:8
 
 ---
 
-## 铁律四：交付必须落成一个 HTML 文件
+## 交付结构定格（三层，缺层＝不合格）
 
-**解析完成 ≠ 交付完成。** 对话里甩一段 markdown 就收工＝没交付。
+HTML 交付必须包含三层结构（对照样板，别只对卡数）：
 
-- 产出物必须是一个**可直接双击打开的 `.html` 文件**（含完整解析：答案行/原文标注/篇章结构/长难句/逐题解析/挂卡）
-- 保存后**立即告诉用户文件路径**并说明怎么打开；对话里只放五行速览（答案 + 一句话思路）
-- 任何工具都做得到：没有渲染脚本就把下方模板填上内容，存为 `.html`
-- 零 HTML 交付＝未完成，用户不应需要再催一次
+**全文层**（放在最前，4 项全要）：
+1. 语义流动链——全文语义怎么一步步流动（→ 串联）
+2. 主干 / 枝干——全文主干主张是什么，哪些是支撑细节
+3. 信息层级——各段站在第几层（含「层级≠权重」提示）
+4. 语域 / 文体——什么类型的文章、什么语域
 
-### 最小交付模板（填空即用，手机可读）
+**段落层**（每段一行块，5 件套）：
+英文原文 ＋ 中文译文 ＋ 段旨 badge ＋ 段意概括 ＋（段间关系）
 
-```html
-<!DOCTYPE html><html lang="zh"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>阅读解析</title><style>
-body{font-family:system-ui,sans-serif;max-width:720px;margin:0 auto;padding:16px;line-height:1.7;color:#1a1a1a;background:#faf7f2}
-h1{font-size:22px}h2{font-size:18px;border-left:4px solid #f97316;padding-left:8px}
-.q{background:#fff;border-radius:10px;padding:12px 16px;margin:12px 0;box-shadow:0 2px 10px rgba(249,115,22,.08)}
-.tag{background:#f97316;color:#fff;border-radius:6px;padding:2px 8px;font-size:13px}
-.ans{color:#c2410c;font-weight:bold}
-.note{background:#fde7d2;border-radius:8px;padding:8px 12px;margin-top:8px;font-size:14px}
-</style></head><body>
-<h1>【文章标题】阅读解析</h1>
-<p>答案：【31-B / 32-C / …】</p>
-<h2>篇章结构</h2><p>【段落功能一句话】</p>
-<h2>逐题解析</h2>
-<div class="q"><span class="tag">31 细节题</span><p>【题目】</p><p class="ans">✓ 【正确项】</p><p>定位：…证据：…</p><p>✗ 【干扰项逐个排】</p>
-<div class="note">🎯 本题运用：【用到的方法】｜📖 原理：【卡片里的原理一句话】</div></div>
-</body></html>
-```
+**题目层**（每题）：
+- 定位 → 推理 → 排除，像老师对学生讲课一样详细（不设字数上限）
+- **每题至少挂 3 张卡**：①干扰项判别卡（怎么排错的）②题型主卡（这题考什么）③辅助验证卡（复现/维度/回结论校验类）
+- 每张卡双页签：🎯本题运用（这张卡在这道题里怎么用）／📖知识原理
+- **📖页签＝原卡全文嵌入，禁止人工压缩成几句话**——「说人话」是改写风格，不是删内容；原卡多少节就嵌多少节
+- ▮缺口栏 + 🎯可迁移原则（逐题必填）
+
+工具：`scripts/build_standalone_analysis.py` 可直读卡库自动生成完整结构（含双页签便签与原卡全文嵌入），优先用它。
 
 ---
 
