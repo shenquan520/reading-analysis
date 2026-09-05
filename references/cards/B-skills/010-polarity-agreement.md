@@ -47,7 +47,7 @@
 
 - `also` 在**句首**常作句子副词（`Also, …`），仍要求与前句同向，但语气更接近"补充理由"而非"并列动作"。
 - `Me too.` / `Me neither.` 是固定配对，别写成 `Me either.`（口语里存在但考试视为不规范）。
-- `not only… but also…` 的 `also` 可省；它强调**后半**，接近递进（见 DESIGN-DECISIONS 八 · 待办 4）。
+- `not only… but also…` 的 `also` 可省；它强调**后半**，接近递进。
 
 ---
 
