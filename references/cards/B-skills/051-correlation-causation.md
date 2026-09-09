@@ -42,5 +42,5 @@
 
 ## ⭐ 弱因果词警示
 - **规则**：原文用弱因果措辞（"contributes to" / "is associated with" 相关/有贡献）≠ 因果必然——被选项/转述升级为 "must lead to / causes"（必然导致）即**误导性语言**，须警惕（73 题段落主题原文：this does not mean that a certain course must lead to a certain result）。
-- **配套**：core §1 因果倒置/强加因果；K004（明确因果链才可硬判）。
+- **配套**：core §1 因果倒置/强加因果（明确因果链才可硬判）。
 - **适用题型**：阅读理解细节/推断题 + 七选五内容核验。
