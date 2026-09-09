@@ -1,0 +1,8 @@
+# 验收快照目录（skill_diff.py 生成，不入库）
+.audit_history/
+
+# 验收配置（含本机 source_dir 路径，可选入库；如不希望公开可保留此行）
+# _audit.json
+
+__pycache__/
+*.pyc

@@ -161,7 +161,7 @@
  > P2：「His visit, however, ended up involving a lot more than **that**. Hence this book...」
 3. → 唯一候选 = "write an article about the disappearance of the Aral Sea" → 选 D（Writing an article about the Aral Sea）
 
-**讲义原文**（P166）：
+**讲义原文**：
 > "that 作为代词，指代的一定是上文中出现的内容，而同时细节题的考查顺序又应该与文章细节出现顺序保持一致，所以这道题的答案肯定在上一题的对应内容之后，又在 that 代词之前，因此只有一句... 答案就是意思相近的 D 选项'写文章'。"
 
 ### 7.3 与消歧三步的关系
@@ -187,7 +187,7 @@
 - P3 首句："It's Jason Moran's job to help change **that**."
 - → that = jazz 不受年轻人欢迎 / 听众萎缩的问题
 
-**讲义原文**（p229）："that 这样的代词一定是指代前面出现的内容……这句话是第三段的首句，所以 that 只能指代第二段里的内容，而第二段里你最需要把握的就是转折之后的负态度。"
+**讲义原文**："that 这样的代词一定是指代前面出现的内容……这句话是第三段的首句，所以 that 只能指代第二段里的内容，而第二段里你最需要把握的就是转折之后的负态度。"
 
 ---
 

@@ -47,10 +47,10 @@
 ```
 【题型】段落主旨题
 【定位】P2 整段：First 微调教师 AI → Then 训练学生 AI（不提 owls）
-      → Surprisingly 学生也答 owl → Second test 危险回答同样被传染
+ → Surprisingly 学生也答 owl → Second test 危险回答同样被传染
 【正确项 A】这条时间链整体在展示「研究怎么一步步做」= 研究过程
 【干扰项 D】段落确实全是实验细节，但那是描述不是功能——
-      概括停在半途。检验：你的概括还能不能再上提一层？
+ 概括停在半途。检验：你的概括还能不能再上提一层？
 【用到卡】B048 段落主旨 / B016 句子功能 / A003 信息层级
 ```
 
@@ -59,13 +59,13 @@
 ## 仓库结构
 
 ```
-SKILL.md                 工作规则与工作流（AI 读这个）
-USER-GUIDE.md            使用说明书（人读这个）
-QUESTION-TYPE-MAP.md     题型 → 必查卡对照表
-references/cards/        126 张方法卡（A/B/R 三系，各带 INDEX）
-references/*.md          原理内核 / 语篇关系 / 概括层 / 考试参数
-references/theories/     理论拆解（空，使用者自己积累）
-references/cases/        真题案例（空，使用者自己积累）
+SKILL.md 工作规则与工作流（AI 读这个）
+USER-GUIDE.md 使用说明书（人读这个）
+QUESTION-TYPE-MAP.md 题型 → 必查卡对照表
+references/cards/ 126 张方法卡（A/B/R 三系，各带 INDEX）
+references/*.md 原理内核 / 语篇关系 / 概括层 / 考试参数
+references/theories/ 理论拆解（空，使用者自己积累）
+references/cases/ 真题案例（空，使用者自己积累）
 references/my-patterns.md 个人错题模式（空，复盘自动填充）
 ```
 

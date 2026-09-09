@@ -44,7 +44,7 @@
 | 「The researchers examined submissions, coding experiences into different categories.」+「a pattern of categories ... began to emerge」 | B. explain why the park attracts tourists（焦点错置 park） | C. analyze the main features of the park（与 B 同为 park 焦点，互相支撑） | D. find patterns in the visitors' summaries（编码的直接目的＝发现 pattern） |
 | 「Fruit juices, milk-based drinks and most alcoholic drinks are free of the tax」 | A. Most alcoholic drinks（原文并列免税项） | B/C. Milk-based drinks / Fruit juices（与 A 同属 free of the tax 并列项） | D. Classic Coke（单独接受征税） |
 
-> 讲义book p039 原话：「B、C 两个选项是同义选项，应该一起排除」——本卡来自 case-007 实战提炼。case-011 进一步补充「原文并列项 → 选项同排除」。
+> 讲义book 原话：「B、C 两个选项是同义选项，应该一起排除」——本卡来自 case-007 实战提炼。case-011 进一步补充「原文并列项 → 选项同排除」。
 
 ### 怎么用「原文并列项同排除」
 
@@ -56,7 +56,7 @@
 
 ## 五、来源与版本
 
-- **出题方材料**：讲义book p039 解题思路（「同义选项，应该一起排除」）
+- **出题方材料**：讲义book 解题思路（「同义选项，应该一起排除」）
 - **自建梳理**：螺丝 2026-09-01
 - 相关卡：core-principles §1 排除顺序、B011 复现、B034 宏观结构
 - scope：高考 / CET4 / CET6 · **通用**

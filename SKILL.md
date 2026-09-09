@@ -56,17 +56,17 @@ agent_created: true
 
 ```
 references/
-├─ core-principles.md      原理内核（命题学·定位·推断·主旨·词义·长难句·衔接）
-├─ discourse-relations.md  语篇关系层（句间·段内·段间·段篇）
-├─ summarization.md        概括层（句旨·段旨·篇旨·主旨题）
-├─ exam-params.md          考试差异参数（高考 / CET-4 / CET-6 的篇幅·题型·词汇门槛）
-├─ cards/                  方法卡（B 系做题技能 / A 系思想原理 / R 系复盘维度，各带 INDEX）
-├─ theories/               用户提供后积累的理论拆解（本仓库为空，从这里开始攒）
-│   └─ INDEX.md
-├─ cases/                  用户提供后积累的真题案例（同上）
-│   └─ INDEX.md
-└─ my-patterns.md          个人错题模式与私人规则（最值钱的一层）
-CHANGELOG.md               每次进化留痕
+├─ core-principles.md 原理内核（命题学·定位·推断·主旨·词义·长难句·衔接）
+├─ discourse-relations.md 语篇关系层（句间·段内·段间·段篇）
+├─ summarization.md 概括层（句旨·段旨·篇旨·主旨题）
+├─ exam-params.md 考试差异参数（高考 / CET-4 / CET-6 的篇幅·题型·词汇门槛）
+├─ cards/ 方法卡（B 系做题技能 / A 系思想原理 / R 系复盘维度，各带 INDEX）
+├─ theories/ 用户提供后积累的理论拆解（本仓库为空，从这里开始攒）
+│ └─ INDEX.md
+├─ cases/ 用户提供后积累的真题案例（同上）
+│ └─ INDEX.md
+└─ my-patterns.md 个人错题模式与私人规则（最值钱的一层）
+CHANGELOG.md 每次进化留痕
 ```
 
 知识条目带 `scope` 标签：`通用` / `高考` / `CET4` / `CET6`。检索时按标签过滤，原理只写一遍。
@@ -108,14 +108,14 @@ CHANGELOG.md               每次进化留痕
 用户可能发图片（拍照）或粘贴文字：
 1. 图片 → 多模态读取，先转文字再提炼
 2. 提炼成条目写入 `references/theories/<来源名>.md`：
-   ```
-   ## 规则 N：<一句话规则>
-   - 来源：《书名/篇名》第X章
-   - 主张：<作者原意>
-   - 怎么操作：<具体到动作>
-   - 反例：<什么时候这条不适用>
-   - scope: 通用 | 高考 | CET4 | CET6
-   ```
+ ```
+ ## 规则 N：<一句话规则>
+ - 来源：《书名/篇名》第X章
+ - 主张：<作者原意>
+ - 怎么操作：<具体到动作>
+ - 反例：<什么时候这条不适用>
+ - scope: 通用 | 高考 | CET4 | CET6
+ ```
 3. 新规则与 `core-principles.md` 已有条目冲突 → **先问用户**以哪个为准，别覆盖
 4. 更新 `theories/INDEX.md` 和 `CHANGELOG.md`
 

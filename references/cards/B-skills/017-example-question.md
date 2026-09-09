@@ -120,7 +120,7 @@
 - D. The nature language enhances work performance（把 workday / lunch break 错读为「工作表现」）
 **正项**：C. The same nature experience takes different forms（例子服务的**观点**＝同一体验可变形为不同场景）。
 
-> → **印证**：例证题干扰项几乎全是「例子本身或其细节」，靠「例子不说明例子本身」一句话即可连杀 A/B/D（与讲义book p040 的「例子一定不能说明例子本身」一致）。
+> → **印证**：例证题干扰项几乎全是「例子本身或其细节」，靠「例子不说明例子本身」一句话即可连杀 A/B/D（与讲义book 的「例子一定不能说明例子本身」一致）。
 
 ---
 
