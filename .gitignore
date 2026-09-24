@@ -1,11 +1,10 @@
 # 验收快照目录（skill_diff.py 生成，不入库）
 .audit_history/
 
-# 验收配置 —— **不入库**（2026-09-24 第九轮改）
-# 原决定是可入库（理由：只含本机 source_dir 路径）。但本轮 G32 上线后，这个文件要装
-# `internal_markers`（「什么算内部标记」的清单）——**一份列着"要藏什么"的清单，本身不能公开**。
-# 所以改成：_audit.json 本地保留、不入库；入库的是同目录的 _audit.example.json（模板，无真实标记）。
-_audit.json
+# 验收配置 —— 已改回**入库**（2026-09-24 第十轮）
+# 第九轮曾因「G32 要求把标记清单写进 _audit.json」而取消跟踪；第十轮把**标记清单整体移到包外**
+# （见外部配置 + --config / SKILL_AUDIT_CONFIG / SKILL_AUDIT_MARKERS），包内 _audit.json 只剩
+# profile/source_dir/skip_dirs 这类形态配置，公开无害 → 重新入库，让包自洽、可被他人直接审计。
 
 __pycache__/
 *.pyc
