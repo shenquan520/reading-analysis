@@ -1,0 +1,21 @@
+{
+  "_note": "配置模板（可入库）——把本文件复制为同目录的 _audit.json 再填真实值。_audit.json 本身**不入库**（见 .gitignore）：它要装 internal_markers，而「一份列着要藏什么的清单」本身不能公开。",
+  "_usage": "python <skill-release-audit>/scripts/skill_audit.py <本包路径> --profile=opensource",
+
+  "profile": "opensource",
+  "source_dir": "..",
+
+  "_internal_markers_note": "G32 用它扫全类型文本（含脚本注释）。**这是标记的唯一来源**——同步脚本 scripts/sync_export.py 也直接读它，避免两处清单不同步。清单不完整＝门禁有洞，加一条标记比改一行代码便宜。",
+  "internal_markers": [
+    "<填：内部称呼/人名>",
+    "<填：本机项目根路径，如 X:/某项目>",
+    "<填：本机用户路径，如 X:/Users/某人>",
+    "<填：内部账本/流程文档名>",
+    "<填：内部材料代号>"
+  ],
+  "_marker_exempt_note": "原则上零豁免：豁免一个文件＝放弃对该文件的泄漏检查。仅当某个文件**天然必须**包含被替换串（如脱敏工具本身的替换表）且该文件确定为仅本地、不入库时才豁免。",
+  "marker_exempt_files": [],
+  "marker_exempt_lines": [],
+
+  "skip_dirs": ["node_modules", ".git", "__pycache__", ".venv", "dist", ".workbuddy", ".audit_history"]
+}

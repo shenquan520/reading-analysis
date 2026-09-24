@@ -26,7 +26,7 @@ const path = require("path");
 
 // ====== CONFIG（三处必填） ======
 const CONFIG = {
-  envId: "填环境ID",            // 隔壁翻译的 CloudBase 环境ID
+  envId: "填环境ID",            // 目标 CloudBase 环境ID（从网站端获取）
   secretId: "填SecretId",       // 云开发访问密钥（控制台-访问服务生成）
   secretKey: "填SecretKey",
 };

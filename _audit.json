@@ -1,6 +1,0 @@
-{
-  "_note": "开源版（profile=opensource）：公开分发，版权风险最高，全项严查。source_dir 指向本地版以检测脱敏回潮。",
-  "profile": "opensource",
-  "source_dir": "..",
-  "skip_dirs": ["node_modules", ".git", "__pycache__", ".venv", "dist", "github-export", ".workbuddy", ".audit_history"]
-}

@@ -149,7 +149,9 @@ def _paragraph_blocks(data: dict):
     容忍的写法（三个零记忆冷启动实测各自造了不同的，全部兼容）：
       A. passage.items = [{"en","zh","function","summary","relation"}, …]
       B. passage.paragraphs + 平行数组 functions / translations / summaries / relations
-      C. 顶层或 passage 内 paragraph_notes = [{"trans","summary","relation"}, …]（按序号合并）
+      C. 顶层或 passage 内 paragraph_notes = [{"trans","function","summary","relation"}, …]（按序号合并）
+         ⚠️ function 是**声明字段之一**，不是额外可选项（第九轮 N2 修：代码早就读它，文档漏写 →
+            照文档字面写会静默丢掉段旨；门禁 fixture 因「比合同多给一个字段」而一直绿着，掩盖了这个缺口）
     字段别名：zh/trans/translation 视为译文；function/func/段旨 视为段旨；
              summary/段意概括 视为段意；relation/段间关系 视为段间关系。
     """

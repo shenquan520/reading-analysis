@@ -112,6 +112,9 @@ def gate_matching(root):
     ok &= line("评价文章·他方 6 条", ap_cases.NEUTRAL_EVAL_OK, False, "prod")
     ok &= line("评价文章·冗长 4 条", ap_cases.NEUTRAL_EVAL_LONG, False, "prod")
     # 防御：施事判定最容易误伤「自述里合法提到段落」
+    print("  --- 审核方第九轮双向对照（施事判定四层定版）---")
+    ok &= line("第九轮·评价文章 10", ap_cases.ROUND9_EVAL, False, "prod")
+    ok &= line("第九轮·自述 12", ap_cases.ROUND9_SELF, True, "prod")
     print("  --- 防御·施事判定不得过杀（必须仍命中）---")
     ok &= line("话题句（对象词在前）", ap_cases.SELF_TOPIC_FIRST, True, "prod")
     ok &= line("自述 + 对象词（主语前置）", ap_cases.SELF_WITH_OBJECT, True, "prod")
