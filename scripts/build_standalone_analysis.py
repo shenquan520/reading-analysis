@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import io, os, re, json
+import io, os, re, sys, json
 
 # 路径可移植：默认按「脚本所在目录的上一级」定位卡库与反模式表
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -87,120 +87,16 @@ def sticky(idx, title, use):
             '<div class="pane pane-b k-md">%s</div></div></details>'
             ) % (esc(title), cid, cid, cid, cid, cid, cid, inline(use), card_html(CARDS[name]))
 
-# ===== 反模式层（ANTI-PATTERNS.md）=====
-AP_INDEX = os.environ.get("RA_AP_INDEX", os.path.join(_ROOT, "references", "ANTI-PATTERNS.md"))
+# ===== 反模式层（实现见 scripts/anti_patterns.py —— 与通用管线 analysis_to_html.py 共用同一份）=====
+sys.path.insert(0, _SCRIPT_DIR)
+import anti_patterns as aps
 
-def load_anti_patterns(path=AP_INDEX):
-    """解析 ANTI-PATTERNS.md → {AP-编号: {name, keywords, symptom, why, how, card}}"""
-    try:
-        t = io.open(path, encoding="utf-8").read()
-    except FileNotFoundError:
-        return {}
-    FIELDS = (("- **匹配关键词**", "keywords"), ("- **症状**", "symptom"),
-              ("- **为什么错**", "why"), ("- **怎么防**", "how"),
-              ("- **挂卡**", "card"))
-    pats, cur, last_key = {}, None, None
-    for ln in t.split("\n"):
-        m = re.match(r"^### (AP-\d+)\s*(.+)$", ln.strip())
-        if m:
-            cur = m.group(1)
-            pats[cur] = {"name": m.group(2).strip(), "keywords": [], "symptom": "",
-                         "why": "", "how": "", "card": ""}
-            last_key = None
-            continue
-        if cur is None:
-            continue
-        raw, s = ln.rstrip(), ln.strip()
-        hit = False
-        for pre, key in FIELDS:
-            if s.startswith(pre):
-                pats[cur][key] = s[len(pre):].lstrip("：: ").strip()
-                last_key, hit = key, True
-                break
-        # 兜底：缩进续行并入上一个字段（防「多行写法」被静默丢成空值）。
-        # 常规写法是一行一字段；此处仅防漏，不鼓励多行。
-        if not hit and last_key and raw[:1] in (" ", "\t") and s.startswith("- "):
-            merged = (pats[cur][last_key] + " " + s.lstrip("- ").strip()).strip()
-            pats[cur][last_key] = merged
-    for ap in pats.values():
-        ap["kw_list"] = ap_keywords(ap["keywords"])
-    return pats
-
-def ap_keywords(raw):
-    """关键词串 → 列表（顿号/中文逗号/斜杠/英文逗号 均为分隔符）"""
-    parts = re.split(r"[、，,/／|]+", raw)
-    return [p.strip().strip('"“”') for p in parts if p.strip()]
-
-# 意图闸门（2026-09-24 加，治 F2 误报）：粗筛「这句像不像在说自己犯错」，挡住纯内容提问。
-# 反例（必须拦住）：「这篇讲的是因果关系的文章」「我想知道第三段的定义是什么」
-# 注意：真正干活的是「带错误意图的关键词」（实测 FP 0）；闸门只是粗筛，
-#       信号词写窄了会误伤合法自述（如「选项里明明有原文的词」），故宁可放宽。
-GATE_RE = re.compile(
-    r"我\s*[^。！？\n]{0,12}?(错|搞反|搞混|搞错|分不清|分不开|误判|误解|读错|选错|看错|选|栽|翻车|吃亏|漏|忽略|没注意|没看清|不会|不懂|老是|总是|经常|每次|一直|容易|习惯|以为)"
-    r"|(错在|搞反了|搞混了|分不清|误判|误解了|栽在|翻车|总把|老是|每次都|容易把|漏了|看漏|忽略|没看清|没注意|以为.*?是|总是把|经常把|就选)"
-    r"|(我的问题|我的毛病|我总|我老是|我经常|我每次|我容易|我不会|我总是|我一直)"
-    r"|(明明有|明明想到|明明说|明明选|对答案|复盘|选成|选错|答错|丢分|扣分|被选项骗|被骗|上当了|栽在)"
-)
-
-def match_anti_patterns(user_note, ap_index, gate=True):
-    """按匹配关键词扫用户自述/错因 → 命中列表（按关键词命中数排序）
-
-    gate=True 时先过意图闸门：无自述信号直接返回空（防把内容描述当认错）。
-    """
-    if not user_note:
-        return []
-    if gate and not GATE_RE.search(user_note):
-        return []
-    hits = []
-    for aid, ap in ap_index.items():
-        kws = ap.get("kw_list") or ap_keywords(ap["keywords"])
-        n = sum(1 for k in kws if k and k in user_note)
-        if n:
-            hits.append((aid, n))
-    hits.sort(key=lambda x: -x[1])
-    return [a for a, _ in hits]
-
-def ap_card(aid, ap_index, symptom=None, why=None, how=None):
-    """生成反模式卡 HTML（警示色，与知识卡区分）
-
-    字段策略：四项必填（症状/为什么错/怎么防），但渲染时**空值跳过**——
-    兜底防的是「以后有人新增条目漏填」导致用户可见层出现空行。
-    （2026-09-24 修：旧版固定输出 4 行，而当时 27/36 条只填 3 行 → 空行；现已补齐字段 + 渲染器加兜底）
-    """
-    ap = ap_index.get(aid)
-    if not ap:
-        return ""
-    card = re.sub(r"[（(].*?[)）]", "", ap.get("card", "")).split()
-    card = card[0] if card else ""          # 剥掉「（类5）」这类内部细分标签
-    rows = [
-        ("你这次的症状", inline(symptom or ap["symptom"])),
-        ("为什么错", inline(why or ap["why"])),
-        ("怎么防", inline(how or ap["how"])),
-    ]
-    body = "".join(
-        '<div class="ap-row"><span class="ap-k">%s</span><span class="ap-v">%s</span></div>' % (k, v)
-        for k, v in rows if v and v.strip()
-    )
-    return ('<div class="ap">'
-            '<div class="ap-hd"><span class="ap-ico">!</span>'
-            '<div class="ap-ttl">反模式 %s · %s<span>本次命中</span></div></div>'
-            '<div class="ap-bd">%s'
-            '<div class="ap-ft">📖 原卡：%s</div>'
-            '</div></div>') % (aid, esc(ap["name"]), body, esc(card) or "见反模式表")
-
-def ap_layer(ap_ids, ap_index, notes=None):
-    """反模式层（条件触发）：不命中返回空串"""
-    if not ap_ids:
-        return ""
-    notes = notes or {}
-    shown = ap_ids[:2]   # 上限 2 条，全弹＝噪音
-    body = "".join(ap_card(a, ap_index, **notes.get(a, {})) for a in shown)
-    more = ""
-    if len(ap_ids) > 2:
-        names = "、".join("%s %s" % (a, ap_index[a]["name"]) for a in ap_ids[2:])
-        more = '<div class="ap-more">另有命中（本次从略，避免噪音）：%s</div>' % esc(names)
-    return ('<div class="ap-layer"><div class="ap-bar">⚠️ 反模式层 · 来自你自述的错误</div>'
-            + body + more + '</div>')
+AP_INDEX = aps.index_path(_ROOT)
+load_anti_patterns = aps.load_index        # 兼容旧名
+ap_keywords        = aps.keywords
+match_anti_patterns = aps.match
+ap_card            = aps.card
+ap_layer           = aps.layer
 
 # ===== 便签定义 =====
 S = []
