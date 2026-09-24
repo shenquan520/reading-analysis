@@ -21,6 +21,12 @@ h2{font-size:16px;border-left:5px solid #4f8cff;padding-left:12px;background:#f6
 h3{font-size:14px;margin:16px 0 6px}
 .meta{color:#57606a;font-size:12.5px;margin-bottom:18px}
 .flow{background:#f0f4ff;border:1px solid #d0e2ff;border-radius:8px;padding:10px 14px;font-size:13.5px;margin:8px 0}
+/* 段落层 5 件套 */
+.p-func{background:#e8f1ff;padding:6px 12px;font-size:13px;font-weight:700;color:#185FA5;border-bottom:1px solid #d0e2ff}
+.p-zh{padding:8px 12px;font-size:13.5px;line-height:1.9;color:#3a4450;background:#fafbfc;border-top:1px dashed #e3e8ee}
+.p-sum{padding:8px 12px;font-size:13px;line-height:1.8;background:#f6f9ff;border-top:1px solid #e8eefb;color:#1f2328}
+.p-rel{padding:8px 12px;font-size:13px;line-height:1.8;background:#f7fdf9;border-top:1px solid #e6f3ec;color:#1f2328}
+.p-rel b,.p-sum b{color:#185FA5}
 table{border-collapse:collapse;width:100%;margin:8px 0;font-size:13px}
 th,td{border:1px solid #d0d7de;padding:6px 10px;text-align:left;vertical-align:top}
 th{background:#f0f4ff;font-weight:600}
@@ -137,6 +143,75 @@ def resolve_card(label: str):
                     return f
     return None
 
+def _paragraph_blocks(data: dict):
+    """把交付 JSON 里的段落数据**归一化**成 5 件套列表。
+
+    容忍的写法（三个零记忆冷启动实测各自造了不同的，全部兼容）：
+      A. passage.items = [{"en","zh","function","summary","relation"}, …]
+      B. passage.paragraphs + 平行数组 functions / translations / summaries / relations
+      C. 顶层或 passage 内 paragraph_notes = [{"trans","summary","relation"}, …]（按序号合并）
+    字段别名：zh/trans/translation 视为译文；function/func/段旨 视为段旨；
+             summary/段意概括 视为段意；relation/段间关系 视为段间关系。
+    """
+    ps = data.get("passage", {}) or {}
+    items = ps.get("items") or []
+    paras = ps.get("paragraphs") or []
+    n = max(len(paras), len(items))
+    if n == 0:
+        return []
+
+    def par(key, *aliases):
+        v = ps.get(key) or []
+        return v if isinstance(v, list) else []
+
+    funcs = par("functions") or par("funcs")
+    zh    = par("translations") or par("trans") or par("zh")
+    summ  = par("summaries") or par("summary")
+    rel   = par("relations") or par("relation")
+    # paragraph_notes：顶层或 passage 内，两种都收
+    notes = data.get("paragraph_notes") or ps.get("paragraph_notes") or []
+
+    def pick(seq, i, *keys):
+        if i < len(seq):
+            it = seq[i]
+            if isinstance(it, dict):
+                for k in keys:
+                    if it.get(k):
+                        return it[k]
+            elif it:
+                return it
+        return ""
+
+    blocks = []
+    for i in range(n):
+        it = items[i] if i < len(items) and isinstance(items[i], dict) else {}
+        note = notes[i] if i < len(notes) and isinstance(notes[i], dict) else {}
+        blocks.append({
+            "en":       it.get("en") or it.get("text") or (paras[i] if i < len(paras) else ""),
+            "zh":       it.get("zh") or it.get("trans") or note.get("trans") or pick(zh, i, "zh", "trans") or "",
+            "function": it.get("function") or it.get("func") or pick(funcs, i, "function", "func", "段旨") or "",
+            "summary":  it.get("summary") or note.get("summary") or pick(summ, i, "summary", "段意概括") or "",
+            "relation": it.get("relation") or note.get("relation") or pick(rel, i, "relation", "段间关系") or "",
+        })
+    return blocks
+
+
+def _para_html(b: dict) -> str:
+    """单个段落块：原文 / 译文 / 段旨 badge / 段意概括 / 段间关系"""
+    out = ['<div style="margin:12px 0;border:1px solid #d0d7de;border-radius:8px;overflow:hidden">']
+    badge = f'📌 段旨 · {esc(b["function"])}' if b["function"] else ''
+    out.append(f'<div class="p-func">{badge}</div>')
+    out.append(f'<div style="padding:10px 12px;font-size:14px;line-height:1.9">{esc(b["en"])}</div>')
+    if b["zh"]:
+        out.append(f'<div class="p-zh">{esc(b["zh"])}</div>')
+    if b["summary"]:
+        out.append(f'<div class="p-sum"><b>段意概括</b>：{esc(b["summary"])}</div>')
+    if b["relation"]:
+        out.append(f'<div class="p-rel"><b>段间关系</b>：{esc(b["relation"])}</div>')
+    out.append('</div>')
+    return "".join(out)
+
+
 def build(data: dict) -> str:
     AP_INDEX = aps.load_index(aps.index_path(ROOT))
     out = ['<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">',
@@ -161,21 +236,14 @@ def build(data: dict) -> str:
             out.append(f'<p><b>信息层级：</b>{esc(s["level_map"])}</p>')
         if s.get("register"):
             out.append(f'<p><b>语域/文体：</b>{esc(s["register"])}</p>')
-    # 原文分段 + 功能
-    ps = data.get("passage", {})
-    paras = ps.get("paragraphs", [])
-    funcs = ps.get("functions", [])
-    if paras or funcs:
+    # 段落层（**5 件套**：英文原文 / 中文译文 / 段旨 badge / 段意概括 / 段间关系）
+    # 契约容忍多种写法——三个零记忆冷启动实测里，agent 各自发明了不同结构
+    # （塞进 functions 字符串 / 加 paragraph_notes / 直接自拼 HTML），故这里统一归一化。
+    para_blocks = _paragraph_blocks(data)
+    if para_blocks:
         out.append('<h2>二、原文结构与功能</h2>')
-        for i, para in enumerate(paras):
-            f = funcs[i] if i < len(funcs) else ""
-            out.append(f'<div style="margin:12px 0;border:1px solid #d0d7de;border-radius:8px;overflow:hidden">')
-            if f:
-                out.append(f'<div style="background:#e8f1ff;padding:6px 12px;font-size:13px;font-weight:700;color:#185FA5">📌 段{i+1} · {esc(f)}</div>')
-            else:
-                out.append(f'<div style="background:#f0f4ff;padding:6px 12px;font-size:13px;font-weight:700;color:#185FA5">📌 段{i+1}</div>')
-            out.append(f'<div style="padding:10px 12px;font-size:14px;line-height:1.9">{esc(para)}</div>')
-            out.append('</div>')
+        for blk in para_blocks:
+            out.append(_para_html(blk))
     # 逐题
     qs = data.get("questions", [])
     if qs:
@@ -218,8 +286,8 @@ def build(data: dict) -> str:
                 out.append(f'<div class="wrong">✗ {esc(w.get("opt",""))} — {esc(w.get("reason",""))}</div>')
             out.append('</div>')
     # 反模式层（**条件触发**：不命中则不输出，普通解析不多一个元素）
-    ap_ids, ap_notes = aps.resolve(data, AP_INDEX)
-    ap_html = aps.layer(ap_ids, AP_INDEX, ap_notes)
+    ap_ids, ap_notes, ap_src = aps.resolve(data, AP_INDEX)
+    ap_html = aps.layer(ap_ids, AP_INDEX, ap_notes, source=ap_src)
     if ap_html:
         out.append(ap_html)
     # 复盘（编号随反模式层是否出现而顺延）

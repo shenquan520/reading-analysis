@@ -167,8 +167,29 @@ def card(aid, index, symptom=None, why=None, how=None):
             '</div></div>') % (aid, esc(ap["name"]), body, esc(c) or "见反模式表")
 
 
-def layer(ids, index, notes=None, limit=2):
-    """反模式层（条件触发）：不命中返回空串；上限 limit 条，超出只列名。"""
+# 反模式层的**触发源 → 条幅文案**。
+#
+# 必须如实标注来源：第六轮 L3 冷启动实测抓到——一个「纯提问、无自述」的交付里，
+# 条幅却写着「来自你自述的错误」。这等于**把用户的提问断言成他在认错**，
+# 正是本系统最该避免的误读；而且它还会反过来诱导产出把「选项构造」写成
+# 「你选了 X」（实测同一次冷启动里就出现了这种臆断）。
+# 见 SKILL.md「反模式响应」节：未声明来源时不得断言。
+TRIGGER_LABELS = {
+    "自述": "来自你自述的错误",
+    "错选项构造": "来自本题错选项的构造",
+    "错因": "来自你写的错因",
+    "主动点名": "你点名的反模式",
+}
+# 来源未声明时的中性文案：只陈述「相关」，不臆断用户做过什么
+DEFAULT_TRIGGER_LABEL = "与本题证据链相关"
+
+
+def layer(ids, index, notes=None, limit=2, source=None):
+    """反模式层（条件触发）：不命中返回空串；上限 limit 条，超出只列名。
+
+    source：触发源（见 TRIGGER_LABELS）。**不确定就传 None**——不要猜，
+    猜错会把「用户的提问」说成「用户的错误」。
+    """
     if not ids:
         return ""
     notes = notes or {}
@@ -183,7 +204,8 @@ def layer(ids, index, notes=None, limit=2):
     if rest:
         names = "、".join("%s %s" % (a, index[a]["name"]) for a in rest)
         more = '<div class="ap-more">另有命中（本次从略，避免噪音）：%s</div>' % esc(names)
-    return ('<div class="ap-layer"><div class="ap-bar">⚠️ 反模式层 · 来自你自述的错误</div>'
+    bar = TRIGGER_LABELS.get(source or "", DEFAULT_TRIGGER_LABEL)
+    return ('<div class="ap-layer"><div class="ap-bar">⚠️ 反模式层 · %s</div>' % esc(bar)
             + body + more + '</div>')
 
 
@@ -204,9 +226,16 @@ def resolve(data, index):
       anti_patterns  列表。agent 判定后显式指定，元素可为 "AP-02" 或
                      {"id": "AP-02", "symptom": "…", "why": "…", "how": "…"}（覆盖默认文案）
                      用于字符串匹配兜不住的触发：错选项构造、错因归类、主动点名
-    返回 (ids, notes)：显式项在前（保持 agent 给的优先级），自动命中补齐，去重。
+      ap_trigger     字符串（可选）。**声明触发源**，决定条幅文案，取值：
+                     "自述" / "错选项构造" / "错因" / "主动点名"
+
+    返回 (ids, notes, source)：
+      source 用于条幅文案；**判不准就返回 None**（中性文案），不要臆断——
+      把「用户在提问」说成「用户在认错」是本系统最不能犯的错。
+      推断规则：JSON 显式声明 > 仅由 user_note 自动匹配（＝自述）> None（混合/未声明）
     """
     ids, notes = [], {}
+    explicit = False
     for it in (data.get("anti_patterns") or []):
         if isinstance(it, str):
             aid = it.strip()
@@ -216,12 +245,24 @@ def resolve(data, index):
                 notes[aid] = {k: it[k] for k in ("symptom", "why", "how") if it.get(k)}
         else:
             continue
-        if aid and aid in index and aid not in ids:
-            ids.append(aid)
+        if aid and aid in index:
+            explicit = True
+            if aid not in ids:
+                ids.append(aid)
+    auto = []
     for aid in match(data.get("user_note", ""), index):
         if aid not in ids:
+            auto.append(aid)
             ids.append(aid)
-    return ids, notes
+
+    trig = str(data.get("ap_trigger", "") or "").strip()
+    if trig in TRIGGER_LABELS:
+        source = trig
+    elif auto and not explicit:
+        source = "自述"
+    else:
+        source = None      # 混合来源或未声明 → 不臆断
+    return ids, notes, source
 
 
 CSS = """

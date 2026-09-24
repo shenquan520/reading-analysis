@@ -57,27 +57,50 @@ def gate_empty_rows(analysis_dir, extra_globs):
 
 
 def gate_matching(root):
-    """门禁 2：跑固定回归套件（口径 = 生产：开闸）"""
+    """门禁 2：匹配回归套件，**双口径如实报数**（第七轮 G31：只报开闸＝假绿）
+
+    口径设计（诚实分工，别再自欺）：
+      · 现实中性样本 —— **门禁**：开闸 0 误报 **且** 闭闸 0 误报
+        （含义：关键词本身对「现实提问」就足够窄，不是全靠闸门兜着）
+      · 概念名试纸   —— **诊断**：概念名是给 agent 的语义提示必须保留，
+        它们会被正常提问打中，靠闸门挡 → 只报「开闸/闭闸」两个数，不设通过条件
+    """
     idx = aps.load_index(aps.index_path(root))
     print()
     print(f"【门禁 2】匹配回归套件（反模式 {len(idx)} 条；用例见 ap_cases.py）")
-    suites = [
-        ("历史失败用例（须命中）", ap_cases.HISTORY, True),
-        ("实战自述（须命中）", ap_cases.SELF_REPORT, True),
-        ("内容描述·本机（须为空）", ap_cases.NEUTRAL_DESC, False),
-        ("内容描述·审核方（须为空）", ap_cases.NEUTRAL_REVIEWER, False),
-        ("内容描述·加固（须为空）", ap_cases.NEUTRAL_HARD, False),
-        ("关键词宽度试纸（须为空）", ap_cases.NEUTRAL_KEYWORD_WIDTH, False),
-        ("真实误报回归（须为空）", ap_cases.REGRESSED_FP, False),
-    ]
+    print(f"  {'样本集':24}{'条数':>5}{'开闸误报':>9}{'闭闸误报':>9}  判读")
+
+    def line(name, cases, should_hit, is_gate):
+        on_miss = [t for t in cases if bool(aps.match(t, idx, gate=True)) != should_hit]
+        off_miss = [t for t in cases if bool(aps.match(t, idx, gate=False)) != should_hit]
+        on_bad = len(on_miss)
+        off_bad = len(off_miss)
+        if should_hit:
+            good = (on_bad == 0)
+            verdict = "命中率" if good else f"漏 {on_miss[:3]}"
+        elif is_gate:
+            good = (on_bad == 0 and off_bad == 0)
+            verdict = "关键词单独就够（闭闸也 0）" if good else \
+                      (f"❌ 闭闸漏 {off_bad} 条：{off_miss[:2]}" if on_bad == 0 else f"❌ 开闸漏 {on_miss[:2]}")
+        else:
+            good = (on_bad == 0)
+            verdict = f"诊断·靠闸门挡（闭闸会被打中 {off_bad}/{len(cases)}）"
+        print(f"  {'✅' if good else '❌'} {name:22}{len(cases):>5}{on_bad:>9}{off_bad:>9}  {verdict}")
+        return good
+
     ok = True
-    for name, cases, should_hit in suites:
-        miss = [t for t in cases if bool(aps.match(t, idx)) != should_hit]
-        good = not miss
-        ok = ok and good
-        print(f"  {'✅' if good else '❌'} {name:24} {len(cases) - len(miss)}/{len(cases)}")
-        for t in miss[:6]:
-            print(f"        {'漏' if should_hit else '误'}：{t} -> {aps.match(t, idx) or '（空）'}")
+    # 命中侧（只看开闸口径）
+    ok &= line("历史失败用例（须命中）", ap_cases.HISTORY, True, False)
+    ok &= line("实战自述（须命中）", ap_cases.SELF_REPORT, True, False)
+    # 误报侧现实样本（双口径都是门禁）
+    print("  --- 误报侧·现实中性样本（门禁：开闸与闭闸都必须 0）---")
+    ok &= line("内容描述·本机", ap_cases.NEUTRAL_DESC, False, True)
+    ok &= line("内容描述·审核方", ap_cases.NEUTRAL_REVIEWER, False, True)
+    ok &= line("内容描述·加固", ap_cases.NEUTRAL_HARD, False, True)
+    ok &= line("真实误报回归", ap_cases.REGRESSED_FP, False, True)
+    # 概念名试纸（诊断）
+    print("  --- 误报侧·概念名试纸（诊断，不设门禁）---")
+    ok &= line("关键词宽度试纸", ap_cases.NEUTRAL_KEYWORD_WIDTH, False, False)
     return ok
 
 
@@ -95,7 +118,12 @@ def gate_field_integrity(index):
 
 
 def gate_pipeline(root):
-    """门禁 4：通用交付管线也必须能挂出反模式层（第五轮补的洞，防它长回来）"""
+    """门禁 4：通用交付管线也必须能挂出反模式层，且条幅文案要如实标注触发源
+
+    · 第五轮补：反模式层曾只做在案例脚本里，通用管线没接 → 按规范走的交付根本不出现该层
+    · 第六轮 L3 冷启动补：条幅曾硬编码「来自你自述的错误」，纯提问的交付也会这么写
+      → 把「用户在提问」断言成「用户在认错」，是本系统最不能犯的错
+    """
     fp = os.path.join(root, "scripts", "analysis_to_html.py")
     print()
     print("【门禁 4】通用管线冒烟（analysis_to_html.py 能否挂出反模式层）")
@@ -115,12 +143,18 @@ def gate_pipeline(root):
         "review": {"takeaway": "k"},
     }
     cases = [
-        ("不命中（应无层）", {}, False, "四"),
-        ("自述命中（应有层）", {"user_note": "我总在这类题上翻车，看着挺对就选了"}, True, "五"),
-        ("显式指定（应有层）", {"anti_patterns": [{"id": "AP-05"}]}, True, "五"),
+        ("不命中（应无层）", {}, False, "四", None),
+        ("自述命中（应有层）", {"user_note": "我总在这类题上翻车，看着挺对就选了"}, True, "五", "自述"),
+        ("显式指定（应有层）", {"anti_patterns": [{"id": "AP-05"}]}, True, "五", None),
+        # ↓ 第六轮 L3 冷启动抓到的回归：纯提问 + 显式指定时，
+        #   条幅曾硬编码成「来自你自述的错误」——把用户的提问断言成他在认错。
+        ("纯提问+显式（条幅不得说自述）", {"user_note": "我想知道为什么选 B 不选 A",
+                                          "anti_patterns": ["AP-04"]}, True, "五", "NOT_SELF"),
+        ("显式声明来源＝错选项构造", {"anti_patterns": ["AP-04"], "ap_trigger": "错选项构造"},
+         True, "五", "错选项构造"),
     ]
     ok = True
-    for name, extra, want_layer, want_sec in cases:
+    for name, extra, want_layer, want_sec, want_src in cases:
         d = dict(base)
         d.update(extra)
         html = mod.build(d)
@@ -128,10 +162,43 @@ def gate_pipeline(root):
         sec = re.findall(r'<h2>([一二三四五])、复盘</h2>', html)
         got_sec = sec[0] if sec else "?"
         empty = len(re.findall(r'<span class="ap-v">\s*</span>', html))
-        good = (has == want_layer) and (got_sec == want_sec) and empty == 0
+        bar = re.search(r'<div class="ap-bar">([^<]*)</div>', html)
+        got_bar = bar.group(1) if bar else ""
+        src_ok = True
+        if want_src == "NOT_SELF":
+            src_ok = bool(got_bar) and ("自述" not in got_bar)
+        elif want_src:
+            # 用标签表精确比对（不要子串匹配：文案里可能多虚词，如「错选项的构造」）
+            src_ok = got_bar == "⚠️ 反模式层 · " + aps.TRIGGER_LABELS[want_src]
+        good = (has == want_layer) and (got_sec == want_sec) and empty == 0 and src_ok
         ok = ok and good
-        print(f"  {'✅' if good else '❌'} {name}：反模式层={'有' if has else '无'}（期望{'有' if want_layer else '无'}）"
-              f"  复盘={got_sec}（期望{want_sec}）  空行={empty}")
+        note = f"  条幅={got_bar}" if got_bar else ""
+        print(f"  {'✅' if good else '❌'} {name}：反模式层={'有' if want_layer else '无'}（期望{'有' if want_layer else '无'}）"
+              f"  复盘={got_sec}（期望{want_sec}）  空行={empty}{note}")
+
+    # —— 段落层 5 件套（第六轮 L3 冷启动补：管线只出 2 件，三个 agent 各自绕道）——
+    print("  段落层 5 件套（SKILL 要求：原文/译文/段旨/段意概括/段间关系）")
+    EN = "Concrete and asphalt absorb sunlight during the day."
+    shapes = [
+        ("items 写法", {"passage": {"items": [{"en": EN, "zh": "混凝土吸热。", "function": "现象引入",
+                                               "summary": "热岛成因。", "relation": "为 P2 供前提。"}]}}),
+        ("平行数组写法", {"passage": {"paragraphs": [EN], "functions": ["现象引入"],
+                                      "translations": ["混凝土吸热。"], "summaries": ["热岛成因。"],
+                                      "relations": ["为 P2 供前提。"]}}),
+        ("paragraph_notes 写法", {"passage": {"paragraphs": [EN], "functions": ["现象引入"]},
+                                  "paragraph_notes": [{"trans": "混凝土吸热。", "summary": "热岛成因。",
+                                                       "relation": "为 P2 供前提。"}]}),
+    ]
+    for name, extra in shapes:
+        d = dict(base)
+        d.update(extra)
+        html = mod.build(d)
+        got = {"原文": EN[:12] in html, "译文": "混凝土吸热。" in html,
+               "段旨": "段旨" in html, "段意概括": "段意概括" in html, "段间关系": "段间关系" in html}
+        good = all(got.values())
+        ok = ok and good
+        print(f"  {'✅' if good else '❌'} {name}：{sum(got.values())}/5",
+              "" if good else f"缺 {[k for k, v in got.items() if not v]}")
     return ok
 
 

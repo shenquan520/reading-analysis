@@ -166,7 +166,10 @@ except ValueError:
     AP_NOTES = {}
     print("⚠️ RA_AP_NOTES 不是合法 JSON，已忽略")
 AP_HITS = match_anti_patterns(USER_NOTE, AP_INDEX_SET)
-AP_LAYER = ap_layer(AP_HITS, AP_INDEX_SET, AP_NOTES)
+# 本脚本的 RA_USER_NOTE 按定义就是使用者自述；如实际来自错选项构造/错因，
+# 用 RA_AP_TRIGGER 声明（自述/错选项构造/错因/主动点名），条幅会如实显示。
+AP_TRIGGER = os.environ.get("RA_AP_TRIGGER", "自述") if USER_NOTE else None
+AP_LAYER = ap_layer(AP_HITS, AP_INDEX_SET, AP_NOTES, source=AP_TRIGGER)
 
 def qblock(no, tagtype, qtext, ans, loc, reas, excl, cards, gap, transfer, ap=None):
     cards_html = "".join(stick_html[c] for c in cards)
@@ -322,6 +325,8 @@ def main():
     io.open(out, "w", encoding="utf-8", newline="").write(HTML)
     print("written:", len(HTML), "chars ->", out)
     print("反模式命中:", AP_HITS or "无（条件触发，未渲染反模式层）")
+    if AP_HITS:
+        print("  触发源:", AP_TRIGGER or "未声明（条幅用中性文案）")
     return 0
 
 if __name__ == "__main__":
