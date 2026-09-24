@@ -332,6 +332,12 @@ def build(data: dict) -> str:
     ap_ids, ap_notes, ap_src = aps.resolve(data, AP_INDEX)
     ap_html = aps.layer(ap_ids, AP_INDEX, ap_notes, source=ap_src)
     if ap_html:
+        # ⚠️ 必须带自己的标题 + 编号（第十二轮 L4 实测发现）：
+        #   复盘编号在反模式层出现时会顺延到「五」（第八轮定），这本身对；
+        #   但当时**只让了编号、没给这一层加标题** → 学生看到的是「一、二、三、五」，**跳号**。
+        #   L4 实测（零记忆 agent 真做一套题）当场撞见：页面里找不到「四」。
+        #   修法：层自带标题，编号链条完整。
+        out.append('<h2>四、反模式层：这次暴露的问题</h2>')
         out.append(ap_html)
     # 复盘（编号随反模式层是否出现而顺延）
     r = data.get("review", {})

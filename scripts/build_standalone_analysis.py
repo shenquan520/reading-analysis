@@ -170,6 +170,10 @@ AP_HITS = match_anti_patterns(USER_NOTE, AP_INDEX_SET)
 # 用 RA_AP_TRIGGER 声明（自述/错选项构造/错因/主动点名），条幅会如实显示。
 AP_TRIGGER = os.environ.get("RA_AP_TRIGGER", "自述") if USER_NOTE else None
 AP_LAYER = ap_layer(AP_HITS, AP_INDEX_SET, AP_NOTES, source=AP_TRIGGER)
+# 反模式层自带标题与编号（第十二轮 L4 实测）：层出现时「占位」却没有标题，
+# 会让页面编号看着跳号。两个渲染器保持一致（G36 就在查这类不一致）。
+if AP_LAYER:
+    AP_LAYER = '<h2>四、反模式层：这次暴露的问题</h2>' + AP_LAYER
 
 def qblock(no, tagtype, qtext, ans, loc, reas, excl, cards, gap, transfer, ap=None):
     cards_html = "".join(stick_html[c] for c in cards)

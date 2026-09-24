@@ -330,6 +330,54 @@ def gate_required_fields(root):
     return ok
 
 
+def gate_numbering(root):
+    """门禁 6：交付页面的章节编号必须连贯（第十二轮 L4 实测发现）
+
+    现象（L4：零记忆 agent 真做一套题 + 老师角色交付，验实物时撞见）：
+      反模式层出现时，复盘编号顺延到「五」（第八轮设计），但**层自己没标题**
+      → 学生看到的是「一、二、三、**五**」，中间那个「四」在页面上根本不存在。
+      设计意图（让位）是对的，实现漏了一半（没给层加标题）。
+
+    判据：提取产出 HTML 里所有带编号的 h2，序列必须是「一、二、三…」连续无跳。
+    两种情形都测：反模式层出现（应到「五」）／不出现（应到「四」）。
+    """
+    fp = os.path.join(root, "scripts", "analysis_to_html.py")
+    print()
+    print("【门禁 6】章节编号连贯（层出现时不跳号）")
+    if not os.path.isfile(fp):
+        print("  ⚠️ 未找到 analysis_to_html.py，跳过")
+        return True
+    spec = importlib.util.spec_from_file_location("a2h_num", fp)
+    mod = importlib.util.module_from_spec(spec)
+    try:
+        spec.loader.exec_module(mod)
+    except SystemExit:
+        pass
+    base = {"title": "编号冒烟",
+            "summary": {"theme": "t", "flow": "a → b"},
+            "passage": {"paragraphs": ["p1"], "functions": ["f1"]},
+            "questions": [{"q": "q1", "answer": "B", "why": "w", "cards": [],
+                           "gap": "x", "transfer": "y"}],
+            "review": {"takeaway": "k"}}
+    ok = True
+    order = "一二三四五六"
+    for name, extra in (("反模式层出现", {"user_note": "我老是凭感觉选，说不出依据"}),
+                        ("反模式层不出现", {})):
+        d = dict(base)
+        d.update(extra)
+        html = mod.build(d)
+        seq = [n for n, _ in re.findall(r'<h2>([一二三四五六])、([^<]*)</h2>', html)]
+        # 判据 = **序列内部连续无跳**（不是「必须从一数起」——前面几节可能因数据缺失而不输出，
+        #   那不算跳号。第一版按「从一数起」写，fixture 缺 summary/passage 时立刻假阳性）。
+        nums = [order.index(n) + 1 for n in seq]
+        gaps = [(a, b) for a, b in zip(nums, nums[1:]) if b - a != 1]
+        good = bool(nums) and not gaps
+        ok = ok and good
+        print(f"  {'✅' if good else '❌'} {name}：编号={''.join(seq)}"
+              + (f"  ← 跳号 {gaps}" if gaps else "（连续无跳）"))
+    return ok
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--skill-root", default=os.path.dirname(HERE))
@@ -352,10 +400,11 @@ def main():
     ok3 = gate_field_integrity(index)
     ok4 = gate_pipeline(root)
     ok5 = gate_required_fields(root)
+    ok6 = gate_numbering(root)
 
     print()
     print("=" * 78)
-    allok = ok1 and ok2 and ok3 and ok4 and ok5
+    allok = ok1 and ok2 and ok3 and ok4 and ok5 and ok6
     print("结论：", "🟢 全绿" if allok else "🔴 有门禁不过")
     return 0 if allok else 1
 
