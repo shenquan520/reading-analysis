@@ -14,6 +14,13 @@
   · 缺了不报错，但**会往 stderr 告警**（不静默）——学生看的页面里不塞占位符
   · 二者任一存在即渲染；`gap` 为空但 `transfer` 有值时，缺口渲染成「无」（规范用词）
 
+选项原文（**第十二轮新增，提示级**）：
+  questions[].options   该题的 A/B/C/D 原文——三种写法都吃：
+                        ① {"A": "…", "B": "…"} ② [{"key":"A","text":"…"}] ③ ["…", "…"]
+  · 为什么要有：页面里「干扰项为什么错」这段，**读者看不到选项本身就没法自己复核**，
+    只能回去翻卷子。教具的价值在「学生能自己重走一遍判断」。
+  · 没给不报错，但会往 stderr 打 `[tip]`（**提示级，暂非必填**——待产品口径确认后升为必填）
+
 复盘前缀（随场景变化，**不要写死**）：
   review.kind = "错题" → 「错题归因：」 ／ "要点" → 「本题要点：」
   未声明 → **中性「归因：」**（脚本不替使用者假定「本次有错题」）
@@ -52,6 +59,10 @@ th{background:#f0f4ff;font-weight:600}
 .take{background:#f0f4ff;border-radius:8px;padding:10px 14px;font-size:13px;margin:6px 0}
 .gap{background:#1a1a1a;color:#e5e7eb;border-radius:8px;padding:8px 14px;margin-top:8px;font-size:14px}
 .note{background:#f0f4ff;border-radius:8px;padding:8px 14px;margin-top:6px;font-size:13px}
+.opts{background:#fafbfc;border:1px solid #e3e8ee;border-radius:8px;padding:8px 10px;margin:8px 0;font-size:14px}
+.opt{display:flex;gap:8px;padding:2px 0;line-height:1.6}
+.opt-k{flex:0 0 20px;font-weight:700;color:#185FA5}
+.opt-t{flex:1 1 auto}
 blockquote{border-left:4px solid #4f8cff;margin:10px 0;padding:8px 14px;background:#f6f8fa;color:#444;font-size:13.5px}
 code{background:#f0f2f5;padding:1px 5px;border-radius:4px;font-size:12.5px}
 /* 便利贴内部分支标签（2026-09-02：点卡→选「本题运用/知识原理」分支，纯CSS无JS） */
@@ -230,6 +241,37 @@ def _para_html(b: dict) -> str:
     return "".join(out)
 
 
+def _norm_options(raw):
+    """归一化「选项原文」——三种写法都吃（第十二轮）
+
+      A. {"A": "It cools...", "B": "...", …}
+      B. [{"key": "A", "text": "It cools..."}, …]（也认 k/opt/label）
+      C. ["It cools...", "...", ...]（按下标推 A/B/C/D）
+
+    返回 [(键, 文本)]；给不出来返回 []（渲染器不猜、不塞占位符）。
+    """
+    if not raw:
+        return []
+    out = []
+    if isinstance(raw, dict):
+        for k in sorted(raw, key=lambda x: str(x)):
+            t = raw[k]
+            if isinstance(t, dict):
+                t = t.get("text") or t.get("opt") or ""
+            if str(t).strip():
+                out.append((str(k), str(t).strip()))
+    elif isinstance(raw, list):
+        for i, it in enumerate(raw):
+            if isinstance(it, dict):
+                k = it.get("key") or it.get("k") or it.get("label") or "ABCD"[i:i+1]
+                t = it.get("text") or it.get("opt") or it.get("t") or ""
+            else:
+                k, t = "ABCD"[i:i+1], it
+            if str(t).strip():
+                out.append((str(k), str(t).strip()))
+    return out
+
+
 # 复盘前缀标签（第十一轮 L3-2）——与反模式条幅同一套「声明式 + 中性兜底」做法
 REVIEW_LABELS = {
     "错题": "错题归因：",        # 使用者提交了错选项 / 错因
@@ -242,6 +284,7 @@ def build(data: dict) -> str:
     AP_INDEX = aps.load_index(aps.index_path(ROOT))
     missing_gap = []             # 逐题收集「缺口/可迁移原则两项皆空」的题号（见收尾告警）
     missing_func = []            # 逐段收集「段旨缺失」的段号（第十二轮 P4：与 gap 告警口径对齐）
+    missing_opts = []            # 逐题收集「未提供选项原文」的题号（第十二轮：提示级）
     out = ['<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">',
            '<meta name="viewport" content="width=device-width,initial-scale=1.0">',
            f'<title>{esc(data.get("title","阅读分析"))}</title>',
@@ -281,6 +324,15 @@ def build(data: dict) -> str:
         for i, q in enumerate(qs):
             out.append(f'<div class="q"><div class="qn">第 {i+1} 题</div>')
             out.append(f'<p>{esc(q.get("q",""))}</p>')
+            # 选项原文（可选字段；给了才渲染）——第十二轮：学生在页面上要能**自行复核干扰项**，
+            # 否则「干扰项为什么错」这段读者看不到选项本身，只能回去翻卷子。
+            opts = _norm_options(q.get("options") or q.get("选项"))
+            if opts:
+                out.append('<div class="opts">' + "".join(
+                    f'<div class="opt"><span class="opt-k">{esc(k)}</span>'
+                    f'<span class="opt-t">{esc(t)}</span></div>' for k, t in opts) + '</div>')
+            else:
+                missing_opts.append(i + 1)
             out.append(f'<span class="ans">答案：{esc(q.get("answer",""))}</span>')
             out.append(f'<div class="why">💡 {esc(q.get("why",""))}</div>')
             cards = [c.get("id","") if isinstance(c, dict) else c for c in q.get("cards", [])]
@@ -372,6 +424,12 @@ def build(data: dict) -> str:
         # 原先只有 gap 会告警，段旨缺了静默丢（写法 C 少给 function → 4/5，无一字提示）。
         print('[warn] 第 %s 段未提供「段旨（function）」——规范为该字段必填，'
               '请补 paragraph_notes[].function（或 functions[].段旨）' % missing_func, file=sys.stderr)
+    if missing_opts:
+        # 第十二轮：**提示级**（不是必填）——但是要说，否则「干扰项为什么错」这段
+        # 读者看不到选项本身，只能回去翻卷子，就没法自己复核。
+        print('[tip] 第 %s 题未提供「选项原文（options）」——页面里「干扰项为什么错」将无选项可对照，'
+              '学生无法在页面上自行复核。建议补 questions[].options（三种写法都认，见 docstring）'
+              % missing_opts, file=sys.stderr)
     return '\n'.join(out)
 
 def main():

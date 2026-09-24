@@ -16,6 +16,7 @@
   5) 必填项承载力：规范标「逐题/逐段必填」的项，通用管线必须真承载（第十一轮 L3，元素级）
   6) 章节编号连贯：反模式层出现/不出现两种情形下，页面编号都不得跳号（第十二轮 L4 实测）
   7) 共用词覆盖：关键词有交集的卡对必须有归属决定（切分/互斥/并存），不许留白（第十二轮 P2）
+  8) 卡库卫生：重复块 / 标题编号跳号 / 标题粘连（第十二轮，评审 L4 交付件时顺手抓到）
 
 用法：
     python verify_anti_patterns.py [--skill-root <skill 根>] [--analysis-dir <HTML 目录>]
@@ -290,6 +291,40 @@ def gate_required_fields(root):
     ok = ok and good2
     print(f"  {'✅' if good2 else '❌'} 中文键（缺口/可迁移原则）同样承载：gap 元素={len(re.findall(r'<div class=.gap.>', h2))}")
 
+    # ---- ② 选项原文（第十二轮新增，三种写法都要承载）----
+    # 契约声明「三种写法都吃」，那就三种都测——**声明了却只实现一种 = 契约骗人**
+    # （本项目已因此吃过两次：段落层 5 件套、反模式层只做在案例脚本里）。
+    opt_shapes = {
+        "字典": {"A": "选项甲", "B": "选项乙", "C": "选项丙", "D": "选项丁"},
+        "列表对象": [{"key": "A", "text": "选项甲"}, {"key": "B", "text": "选项乙"}],
+        "纯列表": ["选项甲", "选项乙", "选项丙"],
+    }
+    for sname, sval in opt_shapes.items():
+        dq = dict(base, questions=[{"q": "q1", "answer": "B", "why": "w", "cards": [],
+                                    "gap": "无", "transfer": "x", "options": sval}])
+        hq = mod.build(dq)
+        n_opt = len(re.findall(r'<span class="opt-k">', hq))
+        want = len(sval) if not isinstance(sval, dict) else len(sval)
+        good = (n_opt == want) and "选项甲" in hq
+        ok = ok and good
+        print(f"  {'✅' if good else '❌'} 选项原文·{sname}写法：opt 元素={n_opt}（期望 {want}）")
+
+    # 缺 options → 不塞占位符，但要有提示（与 gap 告警同族：不静默）
+    dq0 = dict(base, questions=[{"q": "q1", "answer": "B", "why": "w", "cards": [],
+                                 "gap": "无", "transfer": "x"}])
+    buf2 = io.StringIO()
+    _o2 = sys.stderr
+    sys.stderr = buf2
+    try:
+        hq0 = mod.build(dq0)
+    finally:
+        sys.stderr = _o2
+    good0 = ('<span class="opt-k">' not in hq0) and ("tip" in buf2.getvalue())
+    ok = ok and good0
+    print(f"  {'✅' if good0 else '❌'} 缺 options（无占位符 + 有提示）："
+          f"opt 元素={len(re.findall(r'<span class=.opt-k.>', hq0))} 提示={chr(39) if False else ''}"
+          f"{'有' if 'tip' in buf2.getvalue() else '无'}")
+
     # 两项皆空 → 不产出占位符（交付物保持干净），但**要有告警**（不静默）
     d3 = dict(base, questions=[{"q": "q1", "answer": "B", "why": "w", "cards": []}])
     buf = io.StringIO()
@@ -385,7 +420,7 @@ def gate_numbering(root):
         html = mod.build(d)
         seq = [n for n, _ in re.findall(r'<h2>([一二三四五六])、([^<]*)</h2>', html)]
         # 判据 = **序列内部连续无跳**（不是「必须从一数起」——前面几节可能因数据缺失而不输出，
-        #   那不算跳号。第一版按「从一数起」写，fixture 缺 summary/passage 时立刻假阳性）。
+        #   那不算跳号。初版按「从一数起」写，fixture 缺 summary/passage 时立刻假阳性）。
         nums = [order.index(n) + 1 for n in seq]
         gaps = [(a, b) for a, b in zip(nums, nums[1:]) if b - a != 1]
         good = bool(nums) and not gaps
@@ -446,6 +481,133 @@ def gate_shared_words(root):
     return ok
 
 
+def gate_card_hygiene(root):
+    """门禁 8：卡库卫生 —— 重复块 / 标题编号跳号 / 标题粘连（2026-09-25 第十二轮立）
+
+    由来：审核方评审 L4 交付件时**顺手查了它引用的两张卡**，抓到两处：
+      · B083 整块「四选项全错案例」连表格重复两遍（10 处重复行）
+      · B037 标题编号 一、二、三、三点五、**五**、六点五、**六** —— 六跑到六点五后面
+    他指出：**B037 这个「编号缺一节」和交付页那个「三→五」是同一个病**——
+    长文档里条件插入或后期补写最容易把编号搞断，而**肉眼很难发现**。
+
+    所以把交付页的检查（门禁 6）推广到卡库：一边是学生看到的页，一边是我们自己读的卡，
+    同一个病就同一套门禁。
+
+    三条判据（**都用块级，避免样板行假阳性**）：
+      ① 重复块：连续 3 行且总长 ≥120 字的两段完全相同（单行重复多为「适用题型」样板，不算）
+      ② 编号跳号：`## 中文数字、` 序列内部必须连续（允许「点五」这种半步编号）
+      ③ 标题粘连：行首不是 `#` 却含 `## ` —— 标题被粘在上一行末尾
+    **三条都带自测夹具**：造一份必然违规的假卡，验证检查器真会报（否则交集恰好为空时报绿＝没查）。
+    """
+    import hashlib
+
+    cards_dir = os.path.join(root, "references", "cards")
+    print("【门禁 8】卡库卫生（重复块 / 编号跳号 / 标题粘连）")
+    if not os.path.isdir(cards_dir):
+        print("  ⏭️ 无 references/cards/ → 跳过（不算通过）")
+        return SKIP
+
+    CN = {c: i + 1 for i, c in enumerate("一二三四五六七八九十")}
+
+    def scan_one(text):
+        """返回 (重复块列表, 跳号列表, 粘连列表)
+
+        ⚠️ 三条判据都被**实测假阳性**打磨过（初版在根目录文档上 4 报 4 假），
+           收紧依据写在各自那一行——**门禁喊狼来了就会被忽略，那比没有门禁更坏**：
+             · `CASE-FEEDING-PROMPT.md`：示例模板里的 `## 一、闭卷结果` 在**代码围栏内**，
+               不是文档标题 → 先剥围栏
+             · 某个**内部账本文件**：`> ## ⚠️ 重启必读` 是**引用块里的标题**，合法
+             · `HANDBOOK.md`：正文里**提到**某个标题（中文引号/反引号包裹），合法
+             · `CHANGELOG.md`：相邻两批的**样板三行**（「本批首次 Read 时…」）逐字相同，合法
+               → 重复块窗口从 3 行提到 5 行、总长提到 200 字，样板行不再触发
+        """
+        # 剥掉代码围栏（``` … ```）——围栏里的是示例，不是文档结构
+        body = re.sub(r"(?ms)^```.*?^```", "", text)
+        lines = [l.rstrip() for l in body.split("\n")]
+        dup, seen = [], {}
+        for i in range(len(lines) - 4):
+            blk = "\n".join(lines[i:i + 5])
+            if len(blk.strip()) < 200:
+                continue
+            h = hashlib.md5(blk.encode()).hexdigest()
+            if h in seen and abs(seen[h] - i) > 5:
+                dup.append((seen[h] + 1, i + 1, lines[seen[h]].strip()[:48]))
+            else:
+                seen[h] = i
+        raw = re.findall(r"(?m)^##\s*([一二三四五六七八九十]+)(点五)?[、.]", body)
+        seq = [CN[b] + (0.5 if h else 0) for b, h in raw if b in CN]
+        jumps = [(seq[i], seq[i + 1]) for i in range(len(seq) - 1) if seq[i + 1] > seq[i] + 1]
+        glue = []
+        for ln in lines:
+            st = ln.lstrip()
+            if not st or st.startswith("#") or st.startswith(">"):
+                continue                      # 标题行 / 引用块标题 → 合法
+            if "|" in ln[:3]:
+                continue
+            m = re.search(r"\S\s*#{2,4}\s+\S", ln)
+            if not m:
+                continue
+            # 反引号 / 中文引号包裹的「提到某标题」→ 合法，不算粘连
+            frag = ln[max(0, m.start() - 2):m.end()]
+            if re.search(r"[`「『“\"']", frag):
+                continue
+            glue.append(ln.strip()[:52])
+        return dup, jumps, glue
+
+    # —— 自测夹具：证伪「这三条不是空转」——
+    # 故意造三处违规：① 一 → 三（跳号）② 标题粘在上一行末尾（缺换行）③ 三段块重复两遍
+    _blk = ("重复块内容重复块内容重复块内容重复块内容重复块内容重复块内容重复块内容重复块内容\n"
+            "第二行第二行第二行第二行第二行第二行第二行第二行第二行第二行第二行第二行第二行\n"
+            "第三行第三行第三行第三行第三行第三行第三行第三行第三行第三行第三行第三行第三行\n"
+            "第四行第四行第四行第四行第四行第四行第四行第四行第四行第四行第四行第四行第四行\n"
+            "第五行第五行第五行第五行第五行第五行第五行第五行第五行第五行第五行第五行第五行")
+    fake = "\n".join([
+        "## 一、甲",
+        "",
+        "正文行正文行正文行正文行正文行正文行正文行正文行正文行正文行正文行正文行",
+        "某些内容写完之后忘了换行，标题就粘上来了## 二、乙",   # ← 粘连（行首不是 #）
+        "",
+        _blk,
+        "",
+        _blk,
+        "",
+        "## 四、丁",                                          # ← 跳号（一 → 四，缺二三）
+    ])
+    fd, fj, fg = scan_one(fake)
+    fixture_ok = bool(fd) and bool(fj) and bool(fg)
+    print(f"  {'✅' if fixture_ok else '❌'} 自测夹具：重复块{len(fd)} / 跳号{fj} / 粘连{len(fg)}"
+          f" —— {'三项都能报出来' if fixture_ok else '**检查器空转！**'}")
+
+    files = sorted(glob.glob(os.path.join(cards_dir, "**", "*.md"), recursive=True))
+    # 根目录的长文档也扫——**同一个病同一个门禁**：
+    #   VERIFICATION.md 自己就曾乱序（八 → 十 → 九 → 十一），因为「插入新节时只编号不排序」。
+    #   交付页跳号、卡片 B037 编号断裂、文档节号乱序——三处同一个成因，别只修一处。
+    files += sorted(glob.glob(os.path.join(root, "*.md")))
+    bad_dup, bad_num, bad_glue = [], [], []
+    for fp in files:
+        rel = os.path.relpath(fp, root).replace("\\", "/")
+        text = io.open(fp, encoding="utf-8").read()
+        d, j, g = scan_one(text)
+        if d:
+            bad_dup.append((rel, d))
+        if j:
+            bad_num.append((rel, j))
+        if g:
+            bad_glue.append((rel, g))
+    print(f"  扫了 {len(files)} 个 md 文件（卡库 + 根目录文档）："
+          f"重复块 {len(bad_dup)} / 跳号 {len(bad_num)} / 粘连 {len(bad_glue)}")
+    for rel, d in bad_dup[:4]:
+        print(f"      ❌ 重复块 {rel}：L{d[0][0]} 与 L{d[0][1]} | {d[0][2]}")
+    for rel, j in bad_num[:6]:
+        print(f"      ❌ 编号跳号 {rel}：{j}")
+    for rel, g in bad_glue[:4]:
+        print(f"      ❌ 标题粘连 {rel}：{g[0]}")
+    ok = fixture_ok and not (bad_dup or bad_num or bad_glue)
+    if not fixture_ok:
+        print("      ⚠️ 夹具没过 = 这道门禁查不出东西，绿了也不代表安全")
+    return ok
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--skill-root", default=os.path.dirname(HERE))
@@ -472,10 +634,11 @@ def main():
     print()
     print("【门禁 7】共用词覆盖检查（关键词交集必须有归属决定，不许留白）")
     ok7 = gate_shared_words(root)
+    ok8 = gate_card_hygiene(root)
 
     print()
     print("=" * 78)
-    allok = ok1 and ok2 and ok3 and ok4 and ok5 and ok6 and ok7
+    allok = ok1 and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and (ok8 is not False)
     print("结论：", "🟢 全绿" if allok else "🔴 有门禁不过")
     return 0 if allok else 1
 

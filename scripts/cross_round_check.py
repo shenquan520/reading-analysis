@@ -162,6 +162,37 @@ def build_checks(root, export):
         return False, (f"❌ 最新证据 {name} 早于最后一次提交 {lag // 60}m{lag % 60}s —— "
                        f"快照不是最终状态，请重跑 `python scripts/make_evidence.py`")
 
+    def r13_gap_ledger():
+        """缺口台账闭环（第十二轮，评审 L4 交付件时立）
+
+        案件：`case-208`（09-06）提的缺口，**19 天后的 `case-209`（09-25）又提了一遍**，中间无人跟。
+        审核方原话：「缺口这个最值钱的产出没有闭环……不记台账，它 19 天后也会变成同一条回头账。」
+
+        规格里写着「▮缺口 = 最值钱的产出」，但它过去只是**散落在 case 文件里的一段话**。
+        本轮建了 `references/缺口台账.md`：每条约定的状态（待立卡/已立卡/已增强/暂不新建/驳回）。
+
+        判据：**每个声明缺口的 case 都必须在台账里有行**，且状态列不许留白。
+        台账不随包发布（引用内部案例内容）→ 第三方包里**如实报 SKIP**，不默认绿。
+        """
+        gl = os.path.join(root, "scripts", "gap_ledger.py")
+        ledger = os.path.join(root, "references", "缺口台账.md")
+        if not os.path.isfile(ledger):
+            return SKIP, "本包无 缺口台账.md（本地工作区专有）→ 未查"
+        if not os.path.isfile(gl):
+            return SKIP, "本包无 scripts/gap_ledger.py（本地专用工具）→ 未查"
+        spec = importlib.util.spec_from_file_location("gap_ledger_cr", gl)
+        mod = importlib.util.module_from_spec(spec)
+        try:
+            spec.loader.exec_module(mod)
+        except SystemExit:
+            pass
+        gaps = mod.extract_gaps(root)
+        problems, rows = mod.check(root, gaps)
+        n_case = len(set(g[0] for g in gaps))
+        if problems:
+            return False, f"❌ 台账 {len(rows)} 行 / 声明缺口的 case {n_case} 个：{problems[:2]}"
+        return True, f"台账 {len(rows)} 行，覆盖声明缺口的 {n_case} 个 case，状态列无留白 ✅"
+
     def two_versions_identical():
         if not has_export:
             return SKIP, "本包无对照版本 → 未查（该检查只在本包 + 开源包成对时才有意义）"
@@ -233,6 +264,7 @@ def build_checks(root, export):
     CHECKS = [
         ("R11", "必填项承载力：缺口栏+可迁移原则", r11_required_fields_carried),
         ("R12", "证据文件不早于最后一次提交", r12_evidence_not_stale),
+        ("R13", "缺口台账闭环（最值钱产出的状态）", r13_gap_ledger),
         ("R3", "账本无具体值回声", r3_no_echo_in_ledger),
         ("R5", "9 条真实自述全命中（当时 4/9）", r5_self_reports),
         ("R5", "AP-12 症状不静默消失（含解析器多行合并）", r5_ap12_symptom_present),
