@@ -5,11 +5,14 @@
  * 用途：把本地 references/cards/ 生成的同步 JSON（cards_batch_vXXXX.json）
  *       整批写入网站的 `cards` 集合（按 cards_version 替换）。
  *
+ * 用途：**备用路径**。标准流程是「本地生成批次 JSON → 交给网站端执行整批替换」
+ *      （服务角色写库，不需要密钥、写入逻辑单一）。仅当网站端不可用时才用本脚本自行上云。
+ *
  * 用法：
- *   1. 任意目录装依赖（建议 D 盘或项目目录）：npm i @cloudbase/node-sdk
- *   2. 填好下方 CONFIG 三项（找隔壁翻译要 envId / 密钥）
+ *   1. 任意目录装依赖（建议项目目录）：npm i @cloudbase/node-sdk
+ *   2. 填好下方 CONFIG 三项（envId / 密钥向网站端索取）
  *   3. node push_cards_to_cloud.js <cards_batch_json路径>
- *      例：node push_cards_to_cloud.js "E:/阅读分析/dist/网站同步包-20260910/cards_batch_v20260910.json"
+ *      例：node push_cards_to_cloud.js dist/cards_batch_v20260910.json
  *
  * 行为：
  *   - 读取 JSON，校验 cards_version / total
