@@ -70,37 +70,55 @@ def gate_matching(root):
     print(f"【门禁 2】匹配回归套件（反模式 {len(idx)} 条；用例见 ap_cases.py）")
     print(f"  {'样本集':24}{'条数':>5}{'开闸误报':>9}{'闭闸误报':>9}  判读")
 
-    def line(name, cases, should_hit, is_gate):
+    def line(name, cases, should_hit, mode):
+        """mode 三档（语义要清楚，别把「生产口径硬门禁」写成「诊断」）：
+          dual —— 开闸 **和** 闭闸都必须 0：本组关键词单独就得够窄（最硬的一档）
+          prod —— 生产口径（开闸）必须 0；闭闸只报数：本组靠闸门或施事判定挡，属「该挡就该挡」
+          diag —— 只报数不设阈值：本组是宽度指标（概念名必然出现在正常句里）
+        """
         on_miss = [t for t in cases if bool(aps.match(t, idx, gate=True)) != should_hit]
         off_miss = [t for t in cases if bool(aps.match(t, idx, gate=False)) != should_hit]
-        on_bad = len(on_miss)
-        off_bad = len(off_miss)
+        on_bad, off_bad = len(on_miss), len(off_miss)
         if should_hit:
             good = (on_bad == 0)
             verdict = "命中率" if good else f"漏 {on_miss[:3]}"
-        elif is_gate:
+        elif mode == "dual":
             good = (on_bad == 0 and off_bad == 0)
             verdict = "关键词单独就够（闭闸也 0）" if good else \
                       (f"❌ 闭闸漏 {off_bad} 条：{off_miss[:2]}" if on_bad == 0 else f"❌ 开闸漏 {on_miss[:2]}")
-        else:
+        elif mode == "prod":
             good = (on_bad == 0)
-            verdict = f"诊断·靠闸门挡（闭闸会被打中 {off_bad}/{len(cases)}）"
+            verdict = (f"生产口径 0（闭闸会命中 {off_bad}/{len(cases)}，由闸门/施事判定挡住）"
+                       if good else f"❌ 开闸漏 {on_miss[:2]}")
+        else:
+            good = True
+            verdict = f"诊断·宽度指标（闭闸命中 {off_bad}/{len(cases)}，不设阈值，上升即预警）"
         print(f"  {'✅' if good else '❌'} {name:22}{len(cases):>5}{on_bad:>9}{off_bad:>9}  {verdict}")
         return good
 
     ok = True
     # 命中侧（只看开闸口径）
-    ok &= line("历史失败用例（须命中）", ap_cases.HISTORY, True, False)
-    ok &= line("实战自述（须命中）", ap_cases.SELF_REPORT, True, False)
-    # 误报侧现实样本（双口径都是门禁）
-    print("  --- 误报侧·现实中性样本（门禁：开闸与闭闸都必须 0）---")
-    ok &= line("内容描述·本机", ap_cases.NEUTRAL_DESC, False, True)
-    ok &= line("内容描述·审核方", ap_cases.NEUTRAL_REVIEWER, False, True)
-    ok &= line("内容描述·加固", ap_cases.NEUTRAL_HARD, False, True)
-    ok &= line("真实误报回归", ap_cases.REGRESSED_FP, False, True)
-    # 概念名试纸（诊断）
-    print("  --- 误报侧·概念名试纸（诊断，不设门禁）---")
-    ok &= line("关键词宽度试纸", ap_cases.NEUTRAL_KEYWORD_WIDTH, False, False)
+    ok &= line("历史失败用例（须命中）", ap_cases.HISTORY, True, "prod")
+    ok &= line("实战自述（须命中）", ap_cases.SELF_REPORT, True, "prod")
+    # 误报侧·最硬一档：关键词单独就得够窄
+    print("  --- 误报侧·【dual】关键词单独就得够窄（开闸与闭闸都必须 0）---")
+    ok &= line("内容描述·本机", ap_cases.NEUTRAL_DESC, False, "dual")
+    ok &= line("内容描述·审核方", ap_cases.NEUTRAL_REVIEWER, False, "dual")
+    ok &= line("内容描述·加固", ap_cases.NEUTRAL_HARD, False, "dual")
+    ok &= line("真实误报回归", ap_cases.REGRESSED_FP, False, "dual")
+    # 误报侧·生产口径硬门禁：靠闸门 / 施事判定挡
+    print("  --- 误报侧·【prod】生产口径必须 0（该挡就该挡；闭闸报数）---")
+    ok &= line("评价文章·报告 8 条", ap_cases.NEUTRAL_EVAL, False, "prod")
+    ok &= line("评价文章·他方 6 条", ap_cases.NEUTRAL_EVAL_OK, False, "prod")
+    # 防御：施事判定最容易误伤「自述里合法提到段落」
+    print("  --- 防御·自述里合法提到段落（必须仍命中，防施事判定过杀）---")
+    ok &= line("自述 + 对象词", ap_cases.SELF_WITH_OBJECT, True, "prod")
+    # 诊断：宽度指标
+    print("  --- 误报侧·【diag】宽度指标（只报数，不设阈值）---")
+    ok &= line("关键词宽度试纸", ap_cases.NEUTRAL_KEYWORD_WIDTH, False, "diag")
+    # 有意不弹的记录（设计决定，报出来免得被当漏报去"修"）
+    if getattr(ap_cases, "DELIBERATE_SKIP", None):
+        print(f"  ℹ️ 有意不弹 {len(ap_cases.DELIBERATE_SKIP)} 条（设计决定，非漏报）")
     return ok
 
 

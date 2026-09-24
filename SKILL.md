@@ -279,7 +279,10 @@ HTML 交付必须包含三层结构 + 一个**条件触发的反模式层**（�
   | `ap_trigger` | 顶层，字符串 | **声明触发源**（自述／错选项构造／错因／主动点名），决定条幅文案；不填＝中性文案 |
   | 段落层 | `passage` 内 | **5 件套**：原文／译文／段旨／段意概括／段间关系。三种写法管线都吃：<br>① `passage.items=[{en,zh,function,summary,relation}]`（推荐）<br>② 平行数组 `paragraphs` + `functions`/`translations`/`summaries`/`relations`<br>③ `paragraph_notes=[{trans,summary,relation}]` 按序号合并 |
 - **脚本已强制**：上限 2 条（超出只列名）、不命中不输出、空字段整行跳过、复盘编号自动顺延
-- **自查命令**：`python scripts/verify_anti_patterns.py`——跑空行 / 误报 / 召回 / 字段齐整四检，全绿才交付（改过 `ANTI-PATTERNS.md` 或渲染器后必跑）
+- **自查命令**：`python scripts/verify_anti_patterns.py`——跑空行 / 匹配回归 / 字段齐整 / 管线冒烟四道门禁，全绿才交付（改过 `ANTI-PATTERNS.md`、`anti_patterns.py` 或任一渲染器后**必跑**）
+- **用例集在同一目录的 `ap_cases.py`**，**追加式、永不删除**：每轮实测发现的漏报/误报都往里加。
+  ⚠️ 改词表却没同步用例集 = 门禁测的不是你改的东西。用例按来源分组（历史失败 / 审核方 / 评价文章 / 防御 / 宽度试纸）。
+- **匹配是三层**（都在 `scripts/anti_patterns.py`）：① 意图闸门（无自述信号直接空）② 关键词命中 ③ **施事判定**——关键词的主语是「这段/这个选项/作者」而非「我」→ 否决。第 ③ 层专治「我觉得这段概括得太宽了」这类**评价文章**被误判成自述。
 
 ---
 
