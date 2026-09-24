@@ -241,6 +241,7 @@ REVIEW_LABELS = {
 def build(data: dict) -> str:
     AP_INDEX = aps.load_index(aps.index_path(ROOT))
     missing_gap = []             # 逐题收集「缺口/可迁移原则两项皆空」的题号（见收尾告警）
+    missing_func = []            # 逐段收集「段旨缺失」的段号（第十二轮 P4：与 gap 告警口径对齐）
     out = ['<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">',
            '<meta name="viewport" content="width=device-width,initial-scale=1.0">',
            f'<title>{esc(data.get("title","阅读分析"))}</title>',
@@ -269,7 +270,9 @@ def build(data: dict) -> str:
     para_blocks = _paragraph_blocks(data)
     if para_blocks:
         out.append('<h2>二、原文结构与功能</h2>')
-        for blk in para_blocks:
+        for bi, blk in enumerate(para_blocks, 1):
+            if not blk.get("function"):
+                missing_func.append(bi)
             out.append(_para_html(blk))
     # 逐题
     qs = data.get("questions", [])
@@ -364,6 +367,11 @@ def build(data: dict) -> str:
         # （但不往学生看的页面上塞占位符——交付物保持干净，合规性由门禁与告警守）
         print('[warn] 第 %s 题未提供「缺口 / 可迁移原则」——规范为逐题必填，'
               '请补 questions[].gap 与 questions[].transfer' % missing_gap, file=sys.stderr)
+    if missing_func:
+        # 第十二轮 P4：与上面那条**口径对齐**——「必填项缺字段」两类都要吭声。
+        # 原先只有 gap 会告警，段旨缺了静默丢（写法 C 少给 function → 4/5，无一字提示）。
+        print('[warn] 第 %s 段未提供「段旨（function）」——规范为该字段必填，'
+              '请补 paragraph_notes[].function（或 functions[].段旨）' % missing_func, file=sys.stderr)
     return '\n'.join(out)
 
 def main():

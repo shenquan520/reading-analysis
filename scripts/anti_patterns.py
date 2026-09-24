@@ -24,6 +24,7 @@
 import io
 import os
 import re
+from itertools import combinations
 
 CN_NUM = "一二三四五六七八九十"
 
@@ -164,11 +165,28 @@ SELF_STRONG_RE = re.compile(
 # 频率副词：出现即说明在讲「习惯」，而习惯只能属于人、不可能是文章的性质
 FREQ_RE = re.compile(r"(我总是|我老是|我经常|我每次|我一直|老是|总是|经常|每次都|动不动|一碰到|一遇到)")
 
-# 互斥对：共用词汇、语义分属两组的两条反模式（第十一轮 L3-3）。
-# 成对命中时只留一条（见 dedup_exclusive）。**加新对之前先跑 ap_cases 全套**——
-# 互斥做错会静默吞掉一条本该弹的卡。
+# —— 共用词归属表（第十一轮 L3-3 立表 / 第十二轮补覆盖检查）——
+#
+# 为什么需要「归属表」：两条反模式若共用同一个关键词，同一段自述会同时命中两条，
+# 其中一条**不对题**——用户看到一张错卡。（首次实测：「我老是靠日常语感选，
+# 觉得哪个读着顺就选哪个」同时命中 AP-02 与 AP-03。）
+#
+# 每个共用词交集**必须**有归属决定，不许留白。三种归属：
+#   ① **切分**：把词归给更对题的那条（首选，治本）→ 切完后交集为空，不进下面两张表
+#   ② **互斥**：两条语义互斥，成对命中时按 dedup_exclusive 的规则处理
+#   ③ **并存**：两条都对题，同时弹是正确的 → 登记进 COEXIST_OK（写明理由）
+#
+# ⚠️ 手工表 = 会不完整的表。所以 `verify_anti_patterns.py` 门禁 7 会**自动扫全部交集**，
+#    任何交集不在下面两张表里 → 门禁不过。（第十二轮教训：机制立好了、表是手搓的、
+#    没有覆盖检查 —— 与「手工标记清单」同一个形状的错，同一课踩了两次。）
 EXCLUSIVE_PAIRS = [
     ("AP-02", "AP-03"),   # 容忍度判等价 vs 凭语感赌选项：共用「语感」类词
+]
+
+# 有意并存：共用词但两条**都对题**，同时弹是正确的。
+# 格式：(AP-xx, AP-yy, "共用词", "为什么两条都对题")
+COEXIST_OK = [
+    # 暂无。有空缺时门禁 7 会报出来，届时在这里写明理由而不是默默放行。
 ]
 
 # 子句边界：施事判定只在**关键词所在子句**内进行（防跨句误否）
@@ -252,37 +270,76 @@ def match(note, index, gate=True):
     if gate and not GATE_RE.search(note):
         return []
     hits = []
+    hit_kws = {}
     for aid, ap in index.items():
         kws = ap.get("kw_list") or keywords(ap.get("keywords", ""))
-        n = sum(1 for k in kws if k and k in note)
-        if n:
-            hits.append((aid, n))
+        got = [k for k in kws if k and k in note]
+        if got:
+            hits.append((aid, len(got)))
+            hit_kws[aid] = got
     hits.sort(key=lambda x: (-x[1], x[0]))
     out = [a for a, _ in hits]
     if gate:
         out = [a for a in out if agent_ok(note, a, index)]
-    return dedup_exclusive(out)
+    return dedup_exclusive(out, hit_kws)
 
 
-def dedup_exclusive(ids):
-    """互斥去重：共用词汇的两条同时命中 → 只留命中更实的那条（2026-09-24 第十一轮 L3-3）
+def dedup_exclusive(ids, hit_kws=None):
+    """互斥去重：共用词汇的两条同时命中 → 按「有没有独立证据」决定丢不丢（第十一轮立 / 第十二轮定口径）
 
     起因（L3 冷启动实测）：输入「我老是靠**日常语感**选，觉得哪个**读着顺**就选哪个，说不出依据」
     同时命中 AP-02（靠日常语感容忍度判等价）与 AP-03（凭语感赌选项）。
     **AP-03 对题，AP-02 不对题**——用户看到两张卡，其中一张是错的。
 
-    做法：`EXCLUSIVE_PAIRS` 声明互斥对；成对命中时**保留命中关键词更多的**，
-    打平则保留列表中靠前的。理由：同一段输入里，命中的词越多说明这条越贴题。
+    ★ 口径（第十二轮定，报告 §三-2 那笔「两句都真时会丢一条」的账）：
+      判据不是「哪条命中多」，而是**「各自的证据是不是独立的」**——
+        · 两条都有**独立证据**（各自命中只属于自己的关键词）→ **两条都留**
+          （用户确实说了两件事，两条都对题；2 条也在「克制」上限内）
+        · 只有一条有独立证据 → 丢另一条（它只是靠共用词蹭进来的）
+        · 都没有独立证据（全靠共用词命中）→ 按命中数取更实的（多者留，打平取靠前者）
+      这样「我老是靠语感选，**而且**我觉得 49% 也算多」不会再被误丢一条——
+      那句话里 AP-02 靠「49%」「也算」命中、AP-03 靠「靠语感」命中，是两件事。
+
     ⚠️ 互斥只对**声明的对**生效——不搞全局去重（不同反模式可以合理地同时成立）。
     """
     if len(ids) < 2:
         return ids
+    hit_kws = hit_kws or {}
     drop = set()
     for a, b in EXCLUSIVE_PAIRS:
-        if a in ids and b in ids:
-            keep, lose = (a, b) if ids.index(a) <= ids.index(b) else (b, a)
-            drop.add(lose)
+        if a not in ids or b not in ids:
+            continue
+        sa, sb = set(hit_kws.get(a) or ()), set(hit_kws.get(b) or ())
+        shared = sa & sb
+        only_a, only_b = sa - shared, sb - shared
+        if only_a and only_b:
+            continue                     # 两条都有独立证据 → 都成立 → 都留
+        if only_a:
+            drop.add(b)                  # b 只靠共用词蹭进来
+            continue
+        if only_b:
+            drop.add(a)
+            continue
+        # 全靠共用词命中 → 取更实的（命中数多者；打平取排序靠前者）
+        keep, lose = (a, b) if ids.index(a) <= ids.index(b) else (b, a)
+        drop.add(lose)
     return [i for i in ids if i not in drop]
+
+
+def keyword_intersections(index):
+    """扫出所有「关键词有交集」的卡对 → [(AP-a, AP-b, [共用词…])]
+
+    门禁 7 用它做**覆盖检查**：每个交集必须有归属决定（切分 / 互斥 / 并存），
+    不许留白。**这是机器能做的部分**——「该不该并存」的语义判断是人的口径决定。
+    """
+    out = []
+    for a, b in combinations(sorted(index), 2):
+        ka = set(index[a].get("kw_list") or keywords(index[a].get("keywords", "")))
+        kb = set(index[b].get("kw_list") or keywords(index[b].get("keywords", "")))
+        inter = ka & kb
+        if inter:
+            out.append((a, b, sorted(inter)))
+    return out
 
 
 def card(aid, index, symptom=None, why=None, how=None):

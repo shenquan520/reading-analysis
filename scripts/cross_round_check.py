@@ -26,11 +26,13 @@
 与 `ap_cases.py` 同一套纪律——它是「判据的回归集」，ap_cases 是「样本的回归集」。
 """
 import argparse
+import glob
 import importlib.util
 import io
 import json
 import os
 import re
+import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -124,6 +126,42 @@ def build_checks(root, export):
         return ok, f"声明 {sorted(declared)}"
 
     # ---------- 跨轮固定项：两版一致 ----------
+    def r12_evidence_not_stale():
+        """证据文件不早于最后一次提交（第十二轮 P1）
+
+        案件：`复验输出-第十一轮整改` 于 00:04:53 生成，之后 00:05:27 又提交了账本改期；
+        而文件头写着「本文件为推送后重跑」——**门禁块贴的是修复前的输出，结论行是修复后的**。
+        只读门禁块的人以为被卡住，只读结论行的人以为全绿。**这比数字错更坏：它毁的是证据链。**
+
+        判据：`dist/` 里最新一份「复验输出-*.txt」的 mtime **必须 >= 仓库最后一次提交时刻**；
+        早于 → 快照不是最终状态，必须用 `python scripts/make_evidence.py` 整份重跑。
+
+        ⚠️ 没有证据文件 / 不是 git 仓库 → **SKIP**（如实报「未查」，不默认绿）——
+        第三方拿到的包本来就没有 dist/，那是正常情况，但「正常」不等于「查过了」。
+        """
+        dist = os.path.join(root, "dist")
+        if not os.path.isdir(dist):
+            return SKIP, "本包无 dist/ → 未查"
+        files = [p for p in glob.glob(os.path.join(dist, "复验输出-*.txt"))]
+        if not files:
+            return SKIP, "本包无「复验输出-*.txt」（第三方包属正常）→ 未查"
+        newest = max(files, key=os.path.getmtime)
+        # 提交历史取**有 .git 的那一份**：本地工作区通常不是 git 仓库（只有开源包是），
+        # 所以不能只看 root —— 否则这道门禁在本地永远 SKIP＝空转（第一次写就踩到了）。
+        git_dir = export if os.path.isdir(os.path.join(export, ".git")) else root
+        r = subprocess.run(["git", "-C", git_dir, "log", "-1", "--format=%ct"],
+                           capture_output=True, text=True)
+        if r.returncode != 0 or not r.stdout.strip().isdigit():
+            return SKIP, "找不到 git 仓库（本地与开源包都不是）→ 未查"
+        head_t = int(r.stdout.strip())
+        ev_t = int(os.path.getmtime(newest))
+        name = os.path.basename(newest)
+        if ev_t >= head_t:
+            return True, f"最新证据 {name} 晚于（或等于）最后一次提交 ✅"
+        lag = head_t - ev_t
+        return False, (f"❌ 最新证据 {name} 早于最后一次提交 {lag // 60}m{lag % 60}s —— "
+                       f"快照不是最终状态，请重跑 `python scripts/make_evidence.py`")
+
     def two_versions_identical():
         if not has_export:
             return SKIP, "本包无对照版本 → 未查（该检查只在本包 + 开源包成对时才有意义）"
@@ -194,6 +232,7 @@ def build_checks(root, export):
 
     CHECKS = [
         ("R11", "必填项承载力：缺口栏+可迁移原则", r11_required_fields_carried),
+        ("R12", "证据文件不早于最后一次提交", r12_evidence_not_stale),
         ("R3", "账本无具体值回声", r3_no_echo_in_ledger),
         ("R5", "9 条真实自述全命中（当时 4/9）", r5_self_reports),
         ("R5", "AP-12 症状不静默消失（含解析器多行合并）", r5_ap12_symptom_present),

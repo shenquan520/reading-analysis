@@ -13,6 +13,9 @@
   3) 字段齐整：36 条五项必须有值（对接审计工具 G30：字段空了用户层会出空行）
   4) 管线冒烟：**通用交付管线**也必须能挂出反模式层
      （第五轮教训：反模式层曾只做在案例脚本里 → 按规范走的交付根本不出现该层）
+  5) 必填项承载力：规范标「逐题/逐段必填」的项，通用管线必须真承载（第十一轮 L3，元素级）
+  6) 章节编号连贯：反模式层出现/不出现两种情形下，页面编号都不得跳号（第十二轮 L4 实测）
+  7) 共用词覆盖：关键词有交集的卡对必须有归属决定（切分/互斥/并存），不许留白（第十二轮 P2）
 
 用法：
     python verify_anti_patterns.py [--skill-root <skill 根>] [--analysis-dir <HTML 目录>]
@@ -327,6 +330,20 @@ def gate_required_fields(root):
         ok = ok and good5
         print(f"  {'✅' if good5 else '❌'} 互斥对（共 {len(cases)} 例）："
               f"{'全部只留对题的那条' if good5 else bad[:2]}")
+
+    # ---- ④ 「两句都真」：各自有独立证据时两条都留（第十二轮 P3 口径） ----
+    both = getattr(ap_cases, "EXCLUSIVE_BOTH_TRUE", [])
+    if both:
+        idx = aps.load_index(aps.index_path(root))
+        bad6 = []
+        for text, must_all in both:
+            hits = aps.match(text, idx)
+            if any(x not in hits for x in must_all):
+                bad6.append((text, hits, must_all))
+        good6 = not bad6
+        ok = ok and good6
+        print(f"  {'✅' if good6 else '❌'} 互斥口径·两句都真（共 {len(both)} 例）："
+              f"{'两条都留（不按命中数硬丢）' if good6 else bad6[:2]}")
     return ok
 
 
@@ -378,6 +395,57 @@ def gate_numbering(root):
     return ok
 
 
+def _uncovered_pairs(index):
+    """扫出「关键词有交集、却没有归属决定」的卡对 → [(AP-a, AP-b, [共用词])]"""
+    covered = set()
+    for pair in (getattr(aps, "EXCLUSIVE_PAIRS", None) or []):
+        covered.add(tuple(sorted(pair[:2])))
+    for row in (getattr(aps, "COEXIST_OK", None) or []):
+        covered.add(tuple(sorted(row[:2])))
+    return [(a, b, w) for a, b, w in aps.keyword_intersections(index)
+            if tuple(sorted((a, b))) not in covered]
+
+
+def gate_shared_words(root):
+    """门禁 7：共用词覆盖检查（第十二轮 P2）
+
+    任何两条反模式的关键词若有交集，**必须有归属决定**，不许留白：
+      ① **切分**（把词归给更对题的那条）→ 交集为空，不进表（首选）
+      ② **互斥**（`EXCLUSIVE_PAIRS`）——成对命中时按独立证据判定丢不丢
+      ③ **并存**（`COEXIST_OK`，须写明「为什么两条都对题」）
+
+    留白的后果：同一段自述弹两张卡、其中一张不对题。AP-09 × AP-14 就是这么漏的——
+    **机制立好了、表是手搓的、没有覆盖检查**，与「手工标记清单」同一个形状的错
+    （第十一轮 T1 已为手工清单补过配置化改造，同一课在关键词表上又踩一次）。
+
+    ⚠️ 覆盖检查最容易变成**空转门禁**：当前交集恰好为 0 时它也会报绿。
+    故下面带**自测夹具**——造一份含共用词的假索引，验证这个检查真的会报。
+    不验证的话，「绿」只说明没查东西（这条纪律见 VERIFICATION.md）。
+    """
+    idx = aps.load_index(aps.index_path(root))
+    bad = _uncovered_pairs(idx)
+
+    # —— 自测夹具：证伪「这个检查不是空转」——
+    fake = {
+        "AP-90": {"name": "夹具甲", "kw_list": ["共用词X", "甲独有"]},
+        "AP-91": {"name": "夹具乙", "kw_list": ["共用词X", "乙独有"]},
+    }
+    fixture_hits = _uncovered_pairs(fake)
+    fixture_ok = len(fixture_hits) == 1 and fixture_hits[0][0] == "AP-90"
+
+    n_pairs = len(aps.keyword_intersections(idx))
+    ok = (not bad) and fixture_ok
+    print(f"  {'✅' if (not bad) else '❌'} 关键词交集 {n_pairs} 对，未归属 "
+          f"{len(bad)} 对"
+          + (f" → {[(a, b, w) for a, b, w in bad]}" if bad else "（切分/互斥/并存 三选一，无留白）"))
+    print(f"  {'✅' if fixture_ok else '❌'} 自测夹具：造一对共用词，检查器"
+          f"{'能报出来' if fixture_ok else '**没报**（门禁空转！）'}"
+          f"  → {fixture_hits}")
+    if not fixture_ok:
+        print("       ⚠️ 夹具没过 = 这道门禁查不出东西，绿了也不代表安全")
+    return ok
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--skill-root", default=os.path.dirname(HERE))
@@ -401,10 +469,13 @@ def main():
     ok4 = gate_pipeline(root)
     ok5 = gate_required_fields(root)
     ok6 = gate_numbering(root)
+    print()
+    print("【门禁 7】共用词覆盖检查（关键词交集必须有归属决定，不许留白）")
+    ok7 = gate_shared_words(root)
 
     print()
     print("=" * 78)
-    allok = ok1 and ok2 and ok3 and ok4 and ok5 and ok6
+    allok = ok1 and ok2 and ok3 and ok4 and ok5 and ok6 and ok7
     print("结论：", "🟢 全绿" if allok else "🔴 有门禁不过")
     return 0 if allok else 1
 
