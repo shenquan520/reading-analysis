@@ -40,13 +40,13 @@ th{background:#f0f4ff;font-weight:600}
 .take{background:#f0f4ff;border-radius:8px;padding:10px 14px;font-size:13px;margin:6px 0}
 blockquote{border-left:4px solid #4f8cff;margin:10px 0;padding:8px 14px;background:#f6f8fa;color:#444;font-size:13.5px}
 code{background:#f0f2f5;padding:1px 5px;border-radius:4px;font-size:12.5px}
-/* 便利贴内部分支标签（2026-09-02 神券：点卡→选「本题运用/知识原理」分支，纯CSS无JS） */
+/* 便利贴内部分支标签（2026-09-02：点卡→选「本题运用/知识原理」分支，纯CSS无JS） */
 .tabr{display:none}
 .tablabel{cursor:pointer;display:inline-block;padding:4px 14px;border-radius:14px;background:#eef1f4;color:#57606a;font-size:12.5px;margin:10px 8px 0 0;user-select:none}
 input.ca:checked ~ label.la,input.cb:checked ~ label.lb{background:#4f8cff;color:#fff;font-weight:700}
 .pane{display:none;padding:10px 2px 0}
 input.ca:checked ~ .pane-a,input.cb:checked ~ .pane-b{display:block}
-/* 便利贴卡片（2026-09-02 神券要求：依据卡点开看内容，贴纸上墙样式） */
+/* 便利贴卡片（2026-09-02：依据卡点开看内容，贴纸上墙样式） */
 .cnote{background:linear-gradient(#fffbe6,#fff7cc);border:1px solid #e8d98a;border-radius:4px;box-shadow:2px 3px 8px rgba(0,0,0,.10);margin:10px 0;transform:rotate(-.4deg);position:relative;font-size:12.5px}
 .cnote::before{content:"";position:absolute;top:-9px;left:50%;width:70px;height:18px;margin-left:-35px;background:rgba(255,230,120,.75);border:1px solid rgba(200,170,60,.35);transform:rotate(-2deg)}
 .cnote>summary{cursor:pointer;list-style:none;padding:10px 14px;font-weight:700;color:#7a5c00;user-select:none}
@@ -107,7 +107,7 @@ def strip_coords(md: str):
     return md
 
 def strip_source(md: str):
-    """便利贴显示时切掉「来源与版本」段 + 内部坐标（神券 2026-09-02）。"""
+    """便利贴显示时切掉「来源与版本」段 + 内部坐标（2026-09-02）。"""
     cut = md.find('来源与版本')
     if cut != -1:
         md = md[:cut]
@@ -302,7 +302,7 @@ def build(data: dict) -> str:
             out.append('<div class="take">🎯 <b>可迁移原则：</b><br>' + esc(r["takeaway"]).replace('\n', '<br>') + '</div>')
     # 追问提示条（每次交付必带）
     out.append('<div style="margin-top:28px;background:#f0f4ff;border:1px solid #d0e2ff;border-radius:10px;padding:12px 16px;font-size:13px;color:#1f2328">💬 <b>看不懂的尽管问。</b>以上任何术语、原理、判断依据，都可以拿去追问 AI——比如"这段怎么概括出来的""这个干扰项怎么构造的"。不懂就问，问到底都行。</div>')
-    # 评分提示（2026-09-02 神券要求：每次交付必带，放最后）
+    # 评分提示（2026-09-02：每次交付必带，放最后）
     out.append('<div style="margin-top:12px;background:#fff8e6;border:1px solid #f0dfa8;border-radius:10px;padding:12px 16px;font-size:13px;color:#1f2328">⭐ <b>给这次解析打个分。</b>一共 5 颗星，你觉得值几颗？直接回复 AI「X 星」就行——不满意的地方也欢迎说，说了才能改。</div>')
     out.append('</body></html>')
     return '\n'.join(out)
