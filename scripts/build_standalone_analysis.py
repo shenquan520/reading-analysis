@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import io, os, re
+import io, os, re, json
 
 # 路径可移植：默认按「脚本所在目录的上一级」定位卡库与反模式表
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -123,9 +123,23 @@ def ap_keywords(raw):
     parts = re.split(r"[、，,/／|]+", raw)
     return [p.strip().strip('"“”') for p in parts if p.strip()]
 
-def match_anti_patterns(user_note, ap_index):
-    """按匹配关键词扫用户自述/错因 → 命中列表（按关键词命中数排序）"""
+# 意图闸门：只有「自述错误」的输入才允许匹配（2026-09-24 加，治 F2 误报）
+# 判据：输入里要有「第一人称 + 出错/习惯」的信号，否则视为「描述文章内容」，直接不匹配。
+# 反例（必须拦住）：「这篇讲的是因果关系的文章」「我想知道第三段的定义是什么」
+GATE_RE = re.compile(
+    r"我\s*[^。！？\n]{0,12}?(错|搞反|搞混|搞错|分不清|分不开|误判|误解|读错|选错|看错|选|栽|翻车|吃亏|漏|忽略|没注意|没看清|不会|不懂|老是|总是|经常|每次|一直|容易|习惯|以为)"
+    r"|(错在|搞反了|搞混了|分不清|误判|误解了|栽在|翻车|总把|老是|每次都|容易把|漏了|看漏|忽略|没看清|没注意|以为.*?是|总是把|经常把|就选)"
+    r"|(我的问题|我的毛病|我总|我老是|我经常|我每次|我容易|我不会|我总是|我一直)"
+)
+
+def match_anti_patterns(user_note, ap_index, gate=True):
+    """按匹配关键词扫用户自述/错因 → 命中列表（按关键词命中数排序）
+
+    gate=True 时先过意图闸门：无自述信号直接返回空（防把内容描述当认错）。
+    """
     if not user_note:
+        return []
+    if gate and not GATE_RE.search(user_note):
         return []
     hits = []
     for aid, ap in ap_index.items():
@@ -137,22 +151,32 @@ def match_anti_patterns(user_note, ap_index):
     return [a for a, _ in hits]
 
 def ap_card(aid, ap_index, symptom=None, why=None, how=None):
-    """生成反模式卡 HTML（警示色，与知识卡区分）"""
+    """生成反模式卡 HTML（警示色，与知识卡区分）
+
+    字段策略：四项必填（症状/为什么错/怎么防），但渲染时**空值跳过**——
+    兜底防的是「以后有人新增条目漏填」导致用户可见层出现空行。
+    （2026-09-24 修：旧版固定输出 4 行，而当时 27/36 条只填 3 行 → 空行；现已补齐字段 + 渲染器加兜底）
+    """
     ap = ap_index.get(aid)
     if not ap:
         return ""
-    card = ap.get("card", "").split()[0] if ap.get("card") else ""
+    card = re.sub(r"[（(].*?[)）]", "", ap.get("card", "")).split()
+    card = card[0] if card else ""          # 剥掉「（类5）」这类内部细分标签
+    rows = [
+        ("你这次的症状", inline(symptom or ap["symptom"])),
+        ("为什么错", inline(why or ap["why"])),
+        ("怎么防", inline(how or ap["how"])),
+    ]
+    body = "".join(
+        '<div class="ap-row"><span class="ap-k">%s</span><span class="ap-v">%s</span></div>' % (k, v)
+        for k, v in rows if v and v.strip()
+    )
     return ('<div class="ap">'
             '<div class="ap-hd"><span class="ap-ico">!</span>'
             '<div class="ap-ttl">反模式 %s · %s<span>本次命中</span></div></div>'
-            '<div class="ap-bd">'
-            '<div class="ap-row"><span class="ap-k">你这次的症状</span><span class="ap-v">%s</span></div>'
-            '<div class="ap-row"><span class="ap-k">为什么错</span><span class="ap-v">%s</span></div>'
-            '<div class="ap-row"><span class="ap-k">怎么防</span><span class="ap-v">%s</span></div>'
+            '<div class="ap-bd">%s'
             '<div class="ap-ft">📖 原卡：%s</div>'
-            '</div></div>') % (
-        aid, esc(ap["name"]), inline(symptom or ap["symptom"]),
-        inline(why or ap["why"]), inline(how or ap["how"]), esc(card) or "见反模式表")
+            '</div></div>') % (aid, esc(ap["name"]), body, esc(card) or "见反模式表")
 
 def ap_layer(ap_ids, ap_index, notes=None):
     """反模式层（条件触发）：不命中返回空串"""
@@ -225,10 +249,17 @@ for pid, badge, zh, summ in PARAS:
 AP_INDEX_SET = load_anti_patterns()
 
 # ===== 用户自述 → 反模式自动匹配 =====
-# 用户提交时若自述错误/错因，填在这里；留空则反模式层不出现（条件触发）
-USER_NOTE = ""
+# 入口优先级：环境变量 > 源码默认。
+#   RA_USER_NOTE  用户自述文本（不设＝空＝反模式层不出现，条件触发）
+#   RA_AP_NOTES   本次定制文案，JSON 字符串：{"AP-01": {"symptom": "…", "how": "…"}}
+# 走环境变量可避免「改源码后忘记改回」导致下一篇带错反模式层。
+USER_NOTE = os.environ.get("RA_USER_NOTE", "")
+try:
+    AP_NOTES = json.loads(os.environ.get("RA_AP_NOTES", "") or "{}")
+except ValueError:
+    AP_NOTES = {}
+    print("⚠️ RA_AP_NOTES 不是合法 JSON，已忽略")
 AP_HITS = match_anti_patterns(USER_NOTE, AP_INDEX_SET)
-AP_NOTES = {}   # 可选：{AP-ID: {"symptom": "…", "why": "…", "how": "…"}} 覆盖表内默认文案
 AP_LAYER = ap_layer(AP_HITS, AP_INDEX_SET, AP_NOTES)
 
 def qblock(no, tagtype, qtext, ans, loc, reas, excl, cards, gap, transfer, ap=None):
