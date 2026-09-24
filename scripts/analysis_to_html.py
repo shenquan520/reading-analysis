@@ -6,6 +6,18 @@
 反模式层（条件触发）：JSON 里给 user_note（使用者自述）即自动匹配，
 或用 anti_patterns 显式指定（错选项构造 / 错因归类 / 主动点名三类靠 agent 判定）。
 不命中则不出现在交付里。
+
+逐题字段（**缺口栏与可迁移原则是规范里的「逐题必填」**，原文见 SKILL.md「交付结构定格」）：
+  questions[].gap       缺口：没有卡能解释的判断（**无则写「无」**）——规范称其为「最值钱的产出」
+  questions[].transfer  可迁移原则：这道题的解法能迁移到哪类题
+  · 中文键同样接受：`缺口` / `可迁移原则`
+  · 缺了不报错，但**会往 stderr 告警**（不静默）——学生看的页面里不塞占位符
+  · 二者任一存在即渲染；`gap` 为空但 `transfer` 有值时，缺口渲染成「无」（规范用词）
+
+复盘前缀（随场景变化，**不要写死**）：
+  review.kind = "错题" → 「错题归因：」 ／ "要点" → 「本题要点：」
+  未声明 → **中性「归因：」**（脚本不替使用者假定「本次有错题」）
+  ⚠️ 与反模式条幅同一套做法：**硬编码前缀 + 场景会变 = 断言使用者没做过的事**。
 """
 import json, pathlib, sys, html as H, re
 
@@ -38,6 +50,8 @@ th{background:#f0f4ff;font-weight:600}
 .wrong{font-size:12.5px;color:#a11;margin:2px 0}
 .wrong b{color:#a11}
 .take{background:#f0f4ff;border-radius:8px;padding:10px 14px;font-size:13px;margin:6px 0}
+.gap{background:#1a1a1a;color:#e5e7eb;border-radius:8px;padding:8px 14px;margin-top:8px;font-size:14px}
+.note{background:#f0f4ff;border-radius:8px;padding:8px 14px;margin-top:6px;font-size:13px}
 blockquote{border-left:4px solid #4f8cff;margin:10px 0;padding:8px 14px;background:#f6f8fa;color:#444;font-size:13.5px}
 code{background:#f0f2f5;padding:1px 5px;border-radius:4px;font-size:12.5px}
 /* 便利贴内部分支标签（2026-09-02：点卡→选「本题运用/知识原理」分支，纯CSS无JS） */
@@ -216,8 +230,17 @@ def _para_html(b: dict) -> str:
     return "".join(out)
 
 
+# 复盘前缀标签（第十一轮 L3-2）——与反模式条幅同一套「声明式 + 中性兜底」做法
+REVIEW_LABELS = {
+    "错题": "错题归因：",        # 使用者提交了错选项 / 错因
+    "要点": "本题要点：",        # 无错题，只是复盘要点
+    "__neutral__": "归因：",     # **未声明 → 中性文案**，脚本不替使用者假定「这是错题」
+}
+
+
 def build(data: dict) -> str:
     AP_INDEX = aps.load_index(aps.index_path(ROOT))
+    missing_gap = []             # 逐题收集「缺口/可迁移原则两项皆空」的题号（见收尾告警）
     out = ['<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">',
            '<meta name="viewport" content="width=device-width,initial-scale=1.0">',
            f'<title>{esc(data.get("title","阅读分析"))}</title>',
@@ -288,6 +311,22 @@ def build(data: dict) -> str:
                 out.append(aps.hint(apq, AP_INDEX))
             for w in q.get("wrong_options", []):
                 out.append(f'<div class="wrong">✗ {esc(w.get("opt",""))} — {esc(w.get("reason",""))}</div>')
+            # 缺口栏 + 可迁移原则（**逐题必填**，第十一轮 L3-1）
+            #
+            # 为什么在这里：SKILL.md 写着「▮缺口栏 + 🎯可迁移原则（逐题必填）」，
+            #   且明说「缺口栏是最值钱的产出」——但这条原先**只做在案例脚本里**，
+            #   通用交付管线压根不承载 → 走通用管线的交付，缺口只能折进 why，机器不可校验。
+            #   这是**同一个洞的第二次**（上一次是反模式层只做在案例脚本里，第六轮冷启动抓到）。
+            # 取值顺序照「两种读者」原则：agent 写的中文键也认。
+            gap = (q.get("gap") or q.get("缺口") or "").strip()
+            transfer = (q.get("transfer") or q.get("可迁移原则") or q.get("transferable") or "").strip()
+            if gap or transfer:
+                # 缺口「无则写 无」是规范用词，空值渲染成「无」而不是空行
+                out.append(f'<div class="gap">▮缺口：{esc(gap or "无")}</div>')
+                if transfer:
+                    out.append(f'<div class="note">🎯 可迁移原则：{esc(transfer)}</div>')
+            else:
+                missing_gap.append(i + 1)
             out.append('</div>')
     # 反模式层（**条件触发**：不命中则不输出，普通解析不多一个元素）
     ap_ids, ap_notes, ap_src = aps.resolve(data, AP_INDEX)
@@ -299,7 +338,14 @@ def build(data: dict) -> str:
     if r:
         out.append('<h2>%s、复盘</h2>' % ('五' if ap_html else '四'))
         if r.get("error_pattern"):
-            out.append(f'<p><b>错题归因：</b>{esc(r["error_pattern"])}</p>')
+            # 复盘前缀随**场景**变化（第十一轮 L3-2）——与反模式条幅同一套做法：
+            #   声明了就用声明的标签；未声明用**中性文案**，脚本不替使用者假定「这是错题」。
+            # 由来：L3 反例输入没有错题，输出里却写死「**错题归因**：」——前缀声称有错题，
+            #   而本次没有。这与第六轮修过的「条幅误归因」是同一类病（硬编码文案 + 场景会变），
+            #   **当时只修了条幅那一处，复盘前缀漏了**。
+            label = REVIEW_LABELS.get((r.get("kind") or r.get("scenario") or "").strip(),
+                                      REVIEW_LABELS["__neutral__"])
+            out.append(f'<p><b>{label}</b>{esc(r["error_pattern"])}</p>')
         if r.get("takeaway"):
             out.append('<div class="take">🎯 <b>可迁移原则：</b><br>' + esc(r["takeaway"]).replace('\n', '<br>') + '</div>')
     # 追问提示条（每次交付必带）
@@ -307,6 +353,11 @@ def build(data: dict) -> str:
     # 评分提示（2026-09-02：每次交付必带，放最后）
     out.append('<div style="margin-top:12px;background:#fff8e6;border:1px solid #f0dfa8;border-radius:10px;padding:12px 16px;font-size:13px;color:#1f2328">⭐ <b>给这次解析打个分。</b>一共 5 颗星，你觉得值几颗？直接回复 AI「X 星」就行——不满意的地方也欢迎说，说了才能改。</div>')
     out.append('</body></html>')
+    if missing_gap:
+        # 不静默：规范说这两项逐题必填，缺了要让**跑管线的人**看见
+        # （但不往学生看的页面上塞占位符——交付物保持干净，合规性由门禁与告警守）
+        print('[warn] 第 %s 题未提供「缺口 / 可迁移原则」——规范为逐题必填，'
+              '请补 questions[].gap 与 questions[].transfer' % missing_gap, file=sys.stderr)
     return '\n'.join(out)
 
 def main():

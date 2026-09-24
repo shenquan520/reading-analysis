@@ -229,6 +229,107 @@ def gate_pipeline(root):
     return ok
 
 
+def gate_required_fields(root):
+    """门禁 5：规范标「必填」的项，通用管线必须真承载（第十一轮 L3 冷启动补）
+
+    三个洞（都是 L3 零记忆 agent 跑出来的，静态体检与差分抓不到）：
+      ① **缺口栏 + 可迁移原则**：SKILL.md 要求「逐题必填」、且称缺口为「最值钱的产出」，
+         而通用管线压根不承载（只有案例脚本有）→ 走通用管线的交付，缺口只能折进 why，机器不可校验。
+         **这是同一个洞的第二次**（上一次是反模式层只做在案例脚本里）。
+      ② **复盘前缀写死「错题归因：」**：无错题场景下前缀仍声称有错题
+         （与第六轮修过的「条幅误归因」同类，当时只修了条幅那一处）。
+      ③ **AP-02 × AP-03 共用词**：同一输入弹两张卡、其中一张不对题（互斥对治它）。
+
+    ★ 判据一律**验到元素级**（数 `class="gap"` 这类元素），不 grep 关键字——
+      恒定注入的 CSS 里也有同名 class 与注释，关键字搜索会全绿。
+      这条方法论是审核方在 L3 里送回来的（他们的反例 agent 主动提醒）。
+    """
+    fp = os.path.join(root, "scripts", "analysis_to_html.py")
+    print()
+    print("【门禁 5】规范「必填」项在通用管线的承载力（缺口栏 / 复盘前缀 / 互斥对）")
+    if not os.path.isfile(fp):
+        print("  ⚠️ 未找到 analysis_to_html.py，跳过")
+        return True
+    spec = importlib.util.spec_from_file_location("a2h_rf", fp)
+    mod = importlib.util.module_from_spec(spec)
+    try:
+        spec.loader.exec_module(mod)
+    except SystemExit:
+        pass
+
+    base = {
+        "title": "必填项冒烟", "summary": {}, "passage": {},
+        "questions": [{"q": "q1", "answer": "B", "why": "w", "cards": []}],
+        "review": {},
+    }
+    ok = True
+
+    # ---- ① 缺口栏 + 可迁移原则（元素级）----
+    d = dict(base, questions=[{"q": "q1", "answer": "B", "why": "w", "cards": [],
+                               "gap": "某类题暂无判定规则，待立卡",
+                               "transfer": "作用类题先问它控制了哪个变量"}])
+    html = mod.build(d)
+    n_gap = len(re.findall(r'<div class="gap">', html))
+    n_note = len(re.findall(r'<div class="note">', html))
+    empty_gap = len(re.findall(r'<div class="gap">\s*</div>', html))
+    hit_gap = "▮缺口：" in html and "待立卡" in html
+    hit_tr = "🎯 可迁移原则：" in html and "控制了哪个变量" in html
+    good = (n_gap == 1 and n_note == 1 and empty_gap == 0 and hit_gap and hit_tr)
+    ok = ok and good
+    print(f"  {'✅' if good else '❌'} 缺口栏+可迁移原则：gap 元素={n_gap} note 元素={n_note} "
+          f"空元素={empty_gap} 文案命中={hit_gap and hit_tr}")
+
+    # 中文键也认（agent 常写中文键）
+    d2 = dict(base, questions=[{"q": "q1", "answer": "B", "why": "w", "cards": [],
+                                "缺口": "无", "可迁移原则": "x"}])
+    h2 = mod.build(d2)
+    good2 = len(re.findall(r'<div class="gap">', h2)) == 1
+    ok = ok and good2
+    print(f"  {'✅' if good2 else '❌'} 中文键（缺口/可迁移原则）同样承载：gap 元素={len(re.findall(r'<div class=.gap.>', h2))}")
+
+    # 两项皆空 → 不产出占位符（交付物保持干净），但**要有告警**（不静默）
+    d3 = dict(base, questions=[{"q": "q1", "answer": "B", "why": "w", "cards": []}])
+    buf = io.StringIO()
+    _old = sys.stderr
+    sys.stderr = buf
+    try:
+        h3 = mod.build(d3)
+    finally:
+        sys.stderr = _old
+    good3 = ('<div class="gap">' not in h3) and ("warn" in buf.getvalue())
+    ok = ok and good3
+    print(f"  {'✅' if good3 else '❌'} 缺字段：交付物无占位符={('<div class=.gap.>' not in h3)} "
+          f"stderr 有告警={('warn' in buf.getvalue())}")
+
+    # ---- ② 复盘前缀随场景变化 ----
+    def label_of(kind):
+        dd = dict(base, review={"error_pattern": "e"})
+        if kind:
+            dd["review"]["kind"] = kind
+        h = mod.build(dd)
+        m = re.search(r'<p><b>([^<]*)</b>', h)
+        return m.group(1) if m else ""
+    lab_q, lab_n, lab_p = label_of("错题"), label_of(None), label_of("要点")
+    good4 = (lab_q == "错题归因：" and lab_p == "本题要点：" and "错题" not in lab_n)
+    ok = ok and good4
+    print(f"  {'✅' if good4 else '❌'} 复盘前缀：声明错题={lab_q!r} 未声明={lab_n!r}（**不得含「错题」**）声明要点={lab_p!r}")
+
+    # ---- ③ 互斥对：共用词的两条不一起弹 ----
+    cases = getattr(ap_cases, "EXCLUSIVE_CASES", [])
+    if cases:
+        idx = aps.load_index(aps.index_path(root))
+        bad = []
+        for text, must_have, must_not in cases:
+            hits = aps.match(text, idx)
+            if must_have not in hits or must_not in hits:
+                bad.append((text, hits))
+        good5 = not bad
+        ok = ok and good5
+        print(f"  {'✅' if good5 else '❌'} 互斥对（共 {len(cases)} 例）："
+              f"{'全部只留对题的那条' if good5 else bad[:2]}")
+    return ok
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--skill-root", default=os.path.dirname(HERE))
@@ -250,10 +351,11 @@ def main():
     ok2 = gate_matching(root)
     ok3 = gate_field_integrity(index)
     ok4 = gate_pipeline(root)
+    ok5 = gate_required_fields(root)
 
     print()
     print("=" * 78)
-    allok = ok1 and ok2 and ok3 and ok4
+    allok = ok1 and ok2 and ok3 and ok4 and ok5
     print("结论：", "🟢 全绿" if allok else "🔴 有门禁不过")
     return 0 if allok else 1
 

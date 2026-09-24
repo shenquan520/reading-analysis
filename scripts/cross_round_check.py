@@ -165,7 +165,35 @@ def build_checks(root, export):
                         hits.append(f"{os.path.relpath(fp, export)}:{mk}")
         return (not hits), (f"{len(markers)} 个标记来自 {src}，0 命中" if not hits else f"{len(hits)} 处：{hits[:3]}")
 
+    def r11_required_fields_carried():
+        """规范标「必填」的项，通用管线必须真承载（缺口栏 / 可迁移原则）
+
+        为什么进跨轮核验：**这个洞发生过两次**——
+          第一次：反模式层只做在案例脚本里，通用管线没接（第六轮 L3 抓到）
+          第二次：缺口栏 + 可迁移原则同样只做在案例脚本里（第十一轮 L3 抓到）
+        同一个「案例脚本有、通用管线没有」的结构问题复发，说明它需要一条**每轮都跑**的检查，
+        而不是等下一次 L3 冷启动再发现。
+        口径：**元素级**（数 class="gap" 元素），不 grep 关键字——CSS 里也有同名 class。
+        """
+        fp = os.path.join(root, "scripts", "analysis_to_html.py")
+        if not os.path.isfile(fp):
+            return False, "找不到渲染管线"
+        spec = importlib.util.spec_from_file_location("a2h_cr", fp)
+        mod = importlib.util.module_from_spec(spec)
+        try:
+            spec.loader.exec_module(mod)
+        except SystemExit:
+            pass
+        d = {"title": "cr", "summary": {}, "passage": {}, "review": {},
+             "questions": [{"q": "q1", "answer": "B", "why": "w", "cards": [],
+                            "gap": "待立卡", "transfer": "迁移到同类题"}]}
+        html = mod.build(d)
+        n_gap = len(re.findall(r'<div class="gap">', html))
+        n_note = len(re.findall(r'<div class="note">', html))
+        return (n_gap == 1 and n_note == 1), f"gap 元素={n_gap} note 元素={n_note}"
+
     CHECKS = [
+        ("R11", "必填项承载力：缺口栏+可迁移原则", r11_required_fields_carried),
         ("R3", "账本无具体值回声", r3_no_echo_in_ledger),
         ("R5", "9 条真实自述全命中（当时 4/9）", r5_self_reports),
         ("R5", "AP-12 症状不静默消失（含解析器多行合并）", r5_ap12_symptom_present),

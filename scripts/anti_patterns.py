@@ -164,6 +164,13 @@ SELF_STRONG_RE = re.compile(
 # 频率副词：出现即说明在讲「习惯」，而习惯只能属于人、不可能是文章的性质
 FREQ_RE = re.compile(r"(我总是|我老是|我经常|我每次|我一直|老是|总是|经常|每次都|动不动|一碰到|一遇到)")
 
+# 互斥对：共用词汇、语义分属两组的两条反模式（第十一轮 L3-3）。
+# 成对命中时只留一条（见 dedup_exclusive）。**加新对之前先跑 ap_cases 全套**——
+# 互斥做错会静默吞掉一条本该弹的卡。
+EXCLUSIVE_PAIRS = [
+    ("AP-02", "AP-03"),   # 容忍度判等价 vs 凭语感赌选项：共用「语感」类词
+]
+
 # 子句边界：施事判定只在**关键词所在子句**内进行（防跨句误否）
 CLAUSE_RE = re.compile(r"[，。！？；、,\n]")
 
@@ -254,7 +261,28 @@ def match(note, index, gate=True):
     out = [a for a, _ in hits]
     if gate:
         out = [a for a in out if agent_ok(note, a, index)]
-    return out
+    return dedup_exclusive(out)
+
+
+def dedup_exclusive(ids):
+    """互斥去重：共用词汇的两条同时命中 → 只留命中更实的那条（2026-09-24 第十一轮 L3-3）
+
+    起因（L3 冷启动实测）：输入「我老是靠**日常语感**选，觉得哪个**读着顺**就选哪个，说不出依据」
+    同时命中 AP-02（靠日常语感容忍度判等价）与 AP-03（凭语感赌选项）。
+    **AP-03 对题，AP-02 不对题**——用户看到两张卡，其中一张是错的。
+
+    做法：`EXCLUSIVE_PAIRS` 声明互斥对；成对命中时**保留命中关键词更多的**，
+    打平则保留列表中靠前的。理由：同一段输入里，命中的词越多说明这条越贴题。
+    ⚠️ 互斥只对**声明的对**生效——不搞全局去重（不同反模式可以合理地同时成立）。
+    """
+    if len(ids) < 2:
+        return ids
+    drop = set()
+    for a, b in EXCLUSIVE_PAIRS:
+        if a in ids and b in ids:
+            keep, lose = (a, b) if ids.index(a) <= ids.index(b) else (b, a)
+            drop.add(lose)
+    return [i for i in ids if i not in drop]
 
 
 def card(aid, index, symptom=None, why=None, how=None):
