@@ -311,8 +311,18 @@ HTML = """<!DOCTYPE html><html lang="zh"><head><meta charset="utf-8">
 
 OUT_DIR = os.environ.get("RA_OUT_DIR", os.path.join(_ROOT, "dist", "analysis"))
 OUT_NAME = os.environ.get("RA_OUT_NAME", "开源版重跑-巴蜀D篇.html")
-os.makedirs(OUT_DIR, exist_ok=True)
-out = os.path.join(OUT_DIR, OUT_NAME)
-io.open(out, "w", encoding="utf-8", newline="").write(HTML)
-print("written:", len(HTML), "chars ->", out)
-print("反模式命中:", AP_HITS or "无（条件触发，未渲染反模式层）")
+
+# ===== 写盘收口（第六轮复验 N4）=====
+# 本脚本是「案例专用生成器」而非库，但 import 它不应产生副作用——
+# 早期版本 import 即写盘，导致别的脚本（如自检）一 import 就覆盖正式产物。
+# 现在所有写盘动作收在 __main__ 里；模块级只做只读的解析与字符串拼装。
+def main():
+    os.makedirs(OUT_DIR, exist_ok=True)
+    out = os.path.join(OUT_DIR, OUT_NAME)
+    io.open(out, "w", encoding="utf-8", newline="").write(HTML)
+    print("written:", len(HTML), "chars ->", out)
+    print("反模式命中:", AP_HITS or "无（条件触发，未渲染反模式层）")
+    return 0
+
+if __name__ == "__main__":
+    raise SystemExit(main())

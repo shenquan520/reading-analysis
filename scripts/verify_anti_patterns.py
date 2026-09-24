@@ -2,57 +2,38 @@
 # -*- coding: utf-8 -*-
 """verify_anti_patterns.py — 反模式系统的交付层门禁（可复跑）
 
-用途：每次改动 ANTI-PATTERNS.md / build_standalone_analysis.py 后跑一次，
+用途：每次改动 ANTI-PATTERNS.md / anti_patterns.py / 任一渲染器后跑一次，
       确认「用户看得见的层」没坏——这是静态体检（skill_audit.py）抓不到的部分。
 
-两道门禁：
+四道门禁：
   1) 空行检查：交付 HTML 里不得出现「标签有、值为空」的反模式行
      （成因见第四轮复验 F1：数据只填 3 行、渲染器固定输出 4 行）
-  2) 误报检查：描述文章内容的正常说法，不得被判成「自述错误」
-     并附「召回对照」——真实自述必须命中，防止为压误报把召回也压没了
+  2) 匹配回归：用 **固定回归套件** `ap_cases.py` 跑（历史失败用例必须命中、误报必须为空）
+     —— 套件是追加式的，每轮复验发现的漏报/误报都进去且永不删除（第六轮 K1）
+  3) 字段齐整：36 条五项必须有值（对接审计工具 G30：字段空了用户层会出空行）
+  4) 管线冒烟：**通用交付管线**也必须能挂出反模式层
+     （第五轮教训：反模式层曾只做在案例脚本里 → 按规范走的交付根本不出现该层）
 
 用法：
-    python verify_anti_patterns.py [--skill-root <skill 根目录>] [--analysis-dir <HTML 目录>]
+    python verify_anti_patterns.py [--skill-root <skill 根>] [--analysis-dir <HTML 目录>]
 默认 skill 根 = 本脚本所在目录的上一级；HTML 目录 = <skill 根>/dist/analysis
 退出码：0 = 全绿；1 = 有门禁不过
 """
 import argparse
 import glob
+import importlib.util
 import io
 import os
 import re
 import sys
 
-
-# —— 门禁 2 的两个样本集 ——
-# 内容描述型：正常提问/描述文章，绝不能命中（否则等于把用户的提问曲解成认错）
-DESC = [
-    '这篇讲的是因果关系的文章', '帮我看看这段的并列结构', '这篇文章用了很多比喻',
-    '我想知道第三段的定义是什么', '这篇文章讲的是人生哲理', '这篇讲竹子的',
-    '我想知道第3段什么意思', '我这次全对了', '我读不懂第三段',
-    '这段的因果关系是什么', '分析一下这句用了什么手法', '这篇文章的观点很中立',
-    '它的论证用了让步', '这篇明明是讲创新的为什么选B', '我觉得这段结构是总分总',
-]
-# 真实自述：应命中至少一条（不必指定哪条，语义匹配由 agent 主路径负责）
-SELF = [
-    '我总把例子当主旨', '选项里明明有原文的词', '看到 but 我就选后面那个',
-    '题干限定词我没看清', '我总把并列当成一样重要', '我一直分不清让步和转折',
-    '我老是读长难句读到一半就忘', '我总被张冠李戴的选项骗',
-    '对完答案发现我把因果搞反了', '我选B是因为原文说能防虫，看着挺对',
-]
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+import anti_patterns as aps          # 纯模块、无副作用：直接 import（不再切分源码——第六轮 K3）
+import ap_cases                      # 固定回归套件（追加式，历史用例永不删）
 
 EMPTY_ROW_RE = re.compile(
     r'<span class="ap-k">(为什么错|症状|你这次的症状|怎么防)</span><span class="ap-v">\s*</span>')
-
-
-def load_matcher(skill_root):
-    """只加载渲染脚本的「定义段」，不执行交付主体（避免副作用）。"""
-    fp = os.path.join(skill_root, "scripts", "build_standalone_analysis.py")
-    src = io.open(fp, encoding="utf-8").read()
-    head = src.split("# ===== 便签定义 =====")[0]
-    ns = {"__file__": os.path.abspath(fp)}
-    exec(compile(head, "build_standalone_analysis_head", "exec"), ns)
-    return ns["load_anti_patterns"](), ns["match_anti_patterns"]
 
 
 def gate_empty_rows(analysis_dir, extra_globs):
@@ -75,50 +56,46 @@ def gate_empty_rows(analysis_dir, extra_globs):
     return not bad
 
 
-def gate_matching(ap_index, matcher):
+def gate_matching(root):
+    """门禁 2：跑固定回归套件（口径 = 生产：开闸）"""
+    idx = aps.load_index(aps.index_path(root))
     print()
-    print("【门禁 2】误报 / 召回 检查")
-    print("  --- 内容描述型（应全部为空）---")
-    fp = []
-    for t in DESC:
-        h = matcher(t, ap_index)
-        if h:
-            fp.append((t, h))
-        print(f"    {t} -> {h if h else '空 ✅'}")
-    print(f"  误报：{len(fp)}/{len(DESC)}", "✅ 全清" if not fp else "❌")
-    print()
-    print("  --- 对照：真实自述（应命中，防「修误报修出漏报」）---")
-    fn = []
-    for t in SELF:
-        h = matcher(t, ap_index)
-        if not h:
-            fn.append(t)
-        print(f"    {t} -> {h if h else '空 ❌'}")
-    print(f"  漏报：{len(fn)}/{len(SELF)}", "✅ 全命中" if not fn else "❌")
-    return (not fp) and (not fn)
+    print(f"【门禁 2】匹配回归套件（反模式 {len(idx)} 条；用例见 ap_cases.py）")
+    suites = [
+        ("历史失败用例（须命中）", ap_cases.HISTORY, True),
+        ("实战自述（须命中）", ap_cases.SELF_REPORT, True),
+        ("内容描述·本机（须为空）", ap_cases.NEUTRAL_DESC, False),
+        ("内容描述·审核方（须为空）", ap_cases.NEUTRAL_REVIEWER, False),
+        ("内容描述·加固（须为空）", ap_cases.NEUTRAL_HARD, False),
+        ("关键词宽度试纸（须为空）", ap_cases.NEUTRAL_KEYWORD_WIDTH, False),
+        ("真实误报回归（须为空）", ap_cases.REGRESSED_FP, False),
+    ]
+    ok = True
+    for name, cases, should_hit in suites:
+        miss = [t for t in cases if bool(aps.match(t, idx)) != should_hit]
+        good = not miss
+        ok = ok and good
+        print(f"  {'✅' if good else '❌'} {name:24} {len(cases) - len(miss)}/{len(cases)}")
+        for t in miss[:6]:
+            print(f"        {'漏' if should_hit else '误'}：{t} -> {aps.match(t, idx) or '（空）'}")
+    return ok
 
 
-def gate_field_integrity(ap_index):
-    """字段齐整（对接审计工具 G30：字段写了但值为空 → 用户层空行/整行消失）"""
+def gate_field_integrity(index):
     need = ("keywords", "symptom", "why", "how", "card")
-    bad = [(k, f) for k, v in ap_index.items() for f in need if not str(v.get(f, "")).strip()]
+    bad = [(k, f) for k, v in index.items() for f in need if not str(v.get(f, "")).strip()]
     print()
     print("【门禁 3】反模式字段齐整（五项必填，对接 G30）")
     if bad:
         for k, f in bad:
             print(f"  ❌ {k}：字段「{f}」为空")
     else:
-        print(f"  ✅ {len(ap_index)} 条五项全有值")
+        print(f"  ✅ {len(index)} 条五项全有值")
     return not bad
 
 
 def gate_pipeline(root):
-    """门禁 4·管线冒烟：**通用交付管线**也必须能挂出反模式层。
-
-    这一项是补历史的洞：反模式层曾只做在案例脚本里，通用管线（analysis_to_html.py）
-    没有它 → 按 SKILL.md 走的正式交付根本不会出现反模式层。
-    """
-    import importlib.util
+    """门禁 4：通用交付管线也必须能挂出反模式层（第五轮补的洞，防它长回来）"""
     fp = os.path.join(root, "scripts", "analysis_to_html.py")
     print()
     print("【门禁 4】通用管线冒烟（analysis_to_html.py 能否挂出反模式层）")
@@ -138,7 +115,6 @@ def gate_pipeline(root):
         "review": {"takeaway": "k"},
     }
     cases = [
-        # (名称, 追加字段, 期望有层, 期望复盘序号)
         ("不命中（应无层）", {}, False, "四"),
         ("自述命中（应有层）", {"user_note": "我总在这类题上翻车，看着挺对就选了"}, True, "五"),
         ("显式指定（应有层）", {"anti_patterns": [{"id": "AP-05"}]}, True, "五"),
@@ -161,8 +137,7 @@ def gate_pipeline(root):
 
 def main():
     ap = argparse.ArgumentParser()
-    here = os.path.dirname(os.path.abspath(__file__))
-    ap.add_argument("--skill-root", default=os.path.dirname(here))
+    ap.add_argument("--skill-root", default=os.path.dirname(HERE))
     ap.add_argument("--analysis-dir", default=None,
                     help="交付 HTML 目录，默认 <skill-root>/dist/analysis")
     a = ap.parse_args()
@@ -173,12 +148,12 @@ def main():
     print(f"skill 根：{root}")
     print("=" * 78)
 
-    index, matcher = load_matcher(root)
+    index = aps.load_index(aps.index_path(root))
     print(f"反模式表：解析到 {len(index)} 条")
     print()
 
     ok1 = gate_empty_rows(adir, [os.path.join(root, "**", "反模式*.html")])
-    ok2 = gate_matching(index, matcher)
+    ok2 = gate_matching(root)
     ok3 = gate_field_integrity(index)
     ok4 = gate_pipeline(root)
 
