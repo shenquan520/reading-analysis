@@ -110,9 +110,11 @@ def gate_matching(root):
     print("  --- 误报侧·【prod】生产口径必须 0（该挡就该挡；闭闸报数）---")
     ok &= line("评价文章·报告 8 条", ap_cases.NEUTRAL_EVAL, False, "prod")
     ok &= line("评价文章·他方 6 条", ap_cases.NEUTRAL_EVAL_OK, False, "prod")
+    ok &= line("评价文章·冗长 4 条", ap_cases.NEUTRAL_EVAL_LONG, False, "prod")
     # 防御：施事判定最容易误伤「自述里合法提到段落」
-    print("  --- 防御·自述里合法提到段落（必须仍命中，防施事判定过杀）---")
-    ok &= line("自述 + 对象词", ap_cases.SELF_WITH_OBJECT, True, "prod")
+    print("  --- 防御·施事判定不得过杀（必须仍命中）---")
+    ok &= line("话题句（对象词在前）", ap_cases.SELF_TOPIC_FIRST, True, "prod")
+    ok &= line("自述 + 对象词（主语前置）", ap_cases.SELF_WITH_OBJECT, True, "prod")
     # 诊断：宽度指标
     print("  --- 误报侧·【diag】宽度指标（只报数，不设阈值）---")
     ok &= line("关键词宽度试纸", ap_cases.NEUTRAL_KEYWORD_WIDTH, False, "diag")
@@ -203,9 +205,11 @@ def gate_pipeline(root):
         ("平行数组写法", {"passage": {"paragraphs": [EN], "functions": ["现象引入"],
                                       "translations": ["混凝土吸热。"], "summaries": ["热岛成因。"],
                                       "relations": ["为 P2 供前提。"]}}),
-        ("paragraph_notes 写法", {"passage": {"paragraphs": [EN], "functions": ["现象引入"]},
-                                  "paragraph_notes": [{"trans": "混凝土吸热。", "summary": "热岛成因。",
-                                                       "relation": "为 P2 供前提。"}]}),
+        # 按注释的字面写法：只给 paragraph_notes（段旨也在 note 里）。
+        # 第八轮 M3：原 fixture 额外塞了 passage.functions，掩盖了「照字面写会丢段旨」的问题。
+        ("paragraph_notes 写法（字面）", {"passage": {"paragraphs": [EN]},
+                                        "paragraph_notes": [{"trans": "混凝土吸热。", "function": "现象引入",
+                                                             "summary": "热岛成因。", "relation": "为 P2 供前提。"}]}),
     ]
     for name, extra in shapes:
         d = dict(base)

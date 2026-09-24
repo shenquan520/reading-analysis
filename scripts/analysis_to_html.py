@@ -189,7 +189,9 @@ def _paragraph_blocks(data: dict):
         blocks.append({
             "en":       it.get("en") or it.get("text") or (paras[i] if i < len(paras) else ""),
             "zh":       it.get("zh") or it.get("trans") or note.get("trans") or pick(zh, i, "zh", "trans") or "",
-            "function": it.get("function") or it.get("func") or pick(funcs, i, "function", "func", "段旨") or "",
+            # function 也要读 note（第八轮 M3）：注释里写法 C 只写了 paragraph_notes，
+            # 若这里不读 note["function"]，照写法 C 字面写的 agent 会**静默丢掉段旨**
+            "function": it.get("function") or it.get("func") or note.get("function") or note.get("func") or pick(funcs, i, "function", "func", "段旨") or "",
             "summary":  it.get("summary") or note.get("summary") or pick(summ, i, "summary", "段意概括") or "",
             "relation": it.get("relation") or note.get("relation") or pick(rel, i, "relation", "段间关系") or "",
         })
