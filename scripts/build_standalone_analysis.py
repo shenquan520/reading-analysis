@@ -96,24 +96,32 @@ def load_anti_patterns(path=AP_INDEX):
         t = io.open(path, encoding="utf-8").read()
     except FileNotFoundError:
         return {}
-    pats, cur = {}, None
+    FIELDS = (("- **匹配关键词**", "keywords"), ("- **症状**", "symptom"),
+              ("- **为什么错**", "why"), ("- **怎么防**", "how"),
+              ("- **挂卡**", "card"))
+    pats, cur, last_key = {}, None, None
     for ln in t.split("\n"):
         m = re.match(r"^### (AP-\d+)\s*(.+)$", ln.strip())
         if m:
             cur = m.group(1)
             pats[cur] = {"name": m.group(2).strip(), "keywords": [], "symptom": "",
                          "why": "", "how": "", "card": ""}
+            last_key = None
             continue
         if cur is None:
             continue
-        s = ln.strip()
-        for pre, key in (("- **匹配关键词**", "keywords"), ("- **症状**", "symptom"),
-                         ("- **为什么错**", "why"), ("- **怎么防**", "how"),
-                         ("- **挂卡**", "card")):
+        raw, s = ln.rstrip(), ln.strip()
+        hit = False
+        for pre, key in FIELDS:
             if s.startswith(pre):
                 pats[cur][key] = s[len(pre):].lstrip("：: ").strip()
-        if s.startswith("- **症状**") is False and s.startswith("  - **"):
-            pats[cur]["symptom"] += " " + s.strip("- ").strip()
+                last_key, hit = key, True
+                break
+        # 兜底：缩进续行并入上一个字段（防「多行写法」被静默丢成空值）。
+        # 常规写法是一行一字段；此处仅防漏，不鼓励多行。
+        if not hit and last_key and raw[:1] in (" ", "\t") and s.startswith("- "):
+            merged = (pats[cur][last_key] + " " + s.lstrip("- ").strip()).strip()
+            pats[cur][last_key] = merged
     for ap in pats.values():
         ap["kw_list"] = ap_keywords(ap["keywords"])
     return pats
@@ -123,13 +131,15 @@ def ap_keywords(raw):
     parts = re.split(r"[、，,/／|]+", raw)
     return [p.strip().strip('"“”') for p in parts if p.strip()]
 
-# 意图闸门：只有「自述错误」的输入才允许匹配（2026-09-24 加，治 F2 误报）
-# 判据：输入里要有「第一人称 + 出错/习惯」的信号，否则视为「描述文章内容」，直接不匹配。
+# 意图闸门（2026-09-24 加，治 F2 误报）：粗筛「这句像不像在说自己犯错」，挡住纯内容提问。
 # 反例（必须拦住）：「这篇讲的是因果关系的文章」「我想知道第三段的定义是什么」
+# 注意：真正干活的是「带错误意图的关键词」（实测 FP 0）；闸门只是粗筛，
+#       信号词写窄了会误伤合法自述（如「选项里明明有原文的词」），故宁可放宽。
 GATE_RE = re.compile(
     r"我\s*[^。！？\n]{0,12}?(错|搞反|搞混|搞错|分不清|分不开|误判|误解|读错|选错|看错|选|栽|翻车|吃亏|漏|忽略|没注意|没看清|不会|不懂|老是|总是|经常|每次|一直|容易|习惯|以为)"
     r"|(错在|搞反了|搞混了|分不清|误判|误解了|栽在|翻车|总把|老是|每次都|容易把|漏了|看漏|忽略|没看清|没注意|以为.*?是|总是把|经常把|就选)"
     r"|(我的问题|我的毛病|我总|我老是|我经常|我每次|我容易|我不会|我总是|我一直)"
+    r"|(明明有|明明想到|明明说|明明选|对答案|复盘|选成|选错|答错|丢分|扣分|被选项骗|被骗|上当了|栽在)"
 )
 
 def match_anti_patterns(user_note, ap_index, gate=True):
