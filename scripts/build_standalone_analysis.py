@@ -1,7 +1,10 @@
 # -*- coding: utf-8 -*-
-import io, re
+import io, os, re
 
-BASE = r"E:/阅读分析/github-export/references/cards"
+# 路径可移植：默认按「脚本所在目录的上一级」定位卡库与反模式表
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+_ROOT = os.path.normpath(os.path.join(_SCRIPT_DIR, ".."))
+BASE = os.environ.get("RA_CARDS_DIR", os.path.join(_ROOT, "references", "cards"))
 
 def md2html(md):
     out, lines = [], md.split("\n")
@@ -84,6 +87,87 @@ def sticky(idx, title, use):
             '<div class="pane pane-b k-md">%s</div></div></details>'
             ) % (esc(title), cid, cid, cid, cid, cid, cid, inline(use), card_html(CARDS[name]))
 
+# ===== 反模式层（ANTI-PATTERNS.md）=====
+AP_INDEX = os.environ.get("RA_AP_INDEX", os.path.join(_ROOT, "references", "ANTI-PATTERNS.md"))
+
+def load_anti_patterns(path=AP_INDEX):
+    """解析 ANTI-PATTERNS.md → {AP-编号: {name, keywords, symptom, why, how, card}}"""
+    try:
+        t = io.open(path, encoding="utf-8").read()
+    except FileNotFoundError:
+        return {}
+    pats, cur = {}, None
+    for ln in t.split("\n"):
+        m = re.match(r"^### (AP-\d+)\s*(.+)$", ln.strip())
+        if m:
+            cur = m.group(1)
+            pats[cur] = {"name": m.group(2).strip(), "keywords": [], "symptom": "",
+                         "why": "", "how": "", "card": ""}
+            continue
+        if cur is None:
+            continue
+        s = ln.strip()
+        for pre, key in (("- **匹配关键词**", "keywords"), ("- **症状**", "symptom"),
+                         ("- **为什么错**", "why"), ("- **怎么防**", "how"),
+                         ("- **挂卡**", "card")):
+            if s.startswith(pre):
+                pats[cur][key] = s[len(pre):].lstrip("：: ").strip()
+        if s.startswith("- **症状**") is False and s.startswith("  - **"):
+            pats[cur]["symptom"] += " " + s.strip("- ").strip()
+    for ap in pats.values():
+        ap["kw_list"] = ap_keywords(ap["keywords"])
+    return pats
+
+def ap_keywords(raw):
+    """关键词串 → 列表（顿号/中文逗号/斜杠/英文逗号 均为分隔符）"""
+    parts = re.split(r"[、，,/／|]+", raw)
+    return [p.strip().strip('"“”') for p in parts if p.strip()]
+
+def match_anti_patterns(user_note, ap_index):
+    """按匹配关键词扫用户自述/错因 → 命中列表（按关键词命中数排序）"""
+    if not user_note:
+        return []
+    hits = []
+    for aid, ap in ap_index.items():
+        kws = ap.get("kw_list") or ap_keywords(ap["keywords"])
+        n = sum(1 for k in kws if k and k in user_note)
+        if n:
+            hits.append((aid, n))
+    hits.sort(key=lambda x: -x[1])
+    return [a for a, _ in hits]
+
+def ap_card(aid, ap_index, symptom=None, why=None, how=None):
+    """生成反模式卡 HTML（警示色，与知识卡区分）"""
+    ap = ap_index.get(aid)
+    if not ap:
+        return ""
+    card = ap.get("card", "").split()[0] if ap.get("card") else ""
+    return ('<div class="ap">'
+            '<div class="ap-hd"><span class="ap-ico">!</span>'
+            '<div class="ap-ttl">反模式 %s · %s<span>本次命中</span></div></div>'
+            '<div class="ap-bd">'
+            '<div class="ap-row"><span class="ap-k">你这次的症状</span><span class="ap-v">%s</span></div>'
+            '<div class="ap-row"><span class="ap-k">为什么错</span><span class="ap-v">%s</span></div>'
+            '<div class="ap-row"><span class="ap-k">怎么防</span><span class="ap-v">%s</span></div>'
+            '<div class="ap-ft">📖 原卡：%s</div>'
+            '</div></div>') % (
+        aid, esc(ap["name"]), inline(symptom or ap["symptom"]),
+        inline(why or ap["why"]), inline(how or ap["how"]), esc(card) or "见反模式表")
+
+def ap_layer(ap_ids, ap_index, notes=None):
+    """反模式层（条件触发）：不命中返回空串"""
+    if not ap_ids:
+        return ""
+    notes = notes or {}
+    shown = ap_ids[:2]   # 上限 2 条，全弹＝噪音
+    body = "".join(ap_card(a, ap_index, **notes.get(a, {})) for a in shown)
+    more = ""
+    if len(ap_ids) > 2:
+        names = "、".join("%s %s" % (a, ap_index[a]["name"]) for a in ap_ids[2:])
+        more = '<div class="ap-more">另有命中（本次从略，避免噪音）：%s</div>' % esc(names)
+    return ('<div class="ap-layer"><div class="ap-bar">⚠️ 反模式层 · 来自你自述的错误</div>'
+            + body + more + '</div>')
+
 # ===== 便签定义 =====
 S = []
 S.append(("B034 宏观结构：问题解决四段", "本篇是标准的「问题解决型」四段落地：P1 情景（植物竞争现象＋研究空白）→ P2 问题/方法（怎么验证化学探测）→ P3/P4 解决（双向实验结果）→ P5 评估（结论＋农业应用）。认出骨架后，35 题主旨直接去「评估段」收结论，32 题装置作用去「方法段」找依据——细节自动归位。"))
@@ -138,15 +222,28 @@ for pid, badge, zh, summ in PARAS:
         % (pid[1], esc(badge), esc(EN[pid]), esc(zh), esc(summ)))
 
 # ===== 题目区 =====
-def qblock(no, tagtype, qtext, ans, loc, reas, excl, cards, gap, transfer):
+AP_INDEX_SET = load_anti_patterns()
+
+# ===== 用户自述 → 反模式自动匹配 =====
+# 用户提交时若自述错误/错因，填在这里；留空则反模式层不出现（条件触发）
+USER_NOTE = ""
+AP_HITS = match_anti_patterns(USER_NOTE, AP_INDEX_SET)
+AP_NOTES = {}   # 可选：{AP-ID: {"symptom": "…", "why": "…", "how": "…"}} 覆盖表内默认文案
+AP_LAYER = ap_layer(AP_HITS, AP_INDEX_SET, AP_NOTES)
+
+def qblock(no, tagtype, qtext, ans, loc, reas, excl, cards, gap, transfer, ap=None):
     cards_html = "".join(stick_html[c] for c in cards)
-    return ('<div class="q"><span class="tag">%s %s</span><p><b>%s</b></p><p class="ans">✓ %s</p>'
-        '<p><b>定位</b>：%s</p><p><b>推理</b>：%s</p><p><b>排除</b>：%s</p>'
-        '<div class="cards">📌 依据卡 ×%d（点开看原卡全文）：）</div>'.replace('））', '）')
-        % (no, esc(tagtype), esc(qtext), esc(ans), esc(loc), esc(reas), esc(excl), len(cards))
-        + cards_html
-        + '<div class="gap">▮缺口：%s</div><div class="note">🎯 可迁移原则：%s</div></div>'
-        % (esc(gap), esc(transfer)))
+    ap_html = ""
+    if ap:
+        names = "、".join("%s %s" % (a, AP_INDEX_SET.get(a, {}).get("name", "")) for a in ap)
+        ap_html = '<div class="ap-inline">⚠️ 反模式命中：%s（详解见页面底部反模式层）</div>' % esc(names)
+    head = ('<div class="q"><span class="tag">%s %s</span><p><b>%s</b></p><p class="ans">✓ %s</p>'
+            '<p><b>定位</b>：%s</p><p><b>推理</b>：%s</p><p><b>排除</b>：%s</p>'
+            '<div class="cards">📌 依据卡 ×%d（点开看原卡全文）：</div>'
+            % (no, esc(tagtype), esc(qtext), esc(ans), esc(loc), esc(reas), esc(excl), len(cards)))
+    tail = ('<div class="gap">▮缺口：%s</div><div class="note">🎯 可迁移原则：%s</div></div>'
+            % (esc(gap), esc(transfer)))
+    return head + cards_html + ap_html + tail
 
 Q32 = qblock("32", "细节题 · 实验装置作用",
  "32. What role did the one-way air channels play in the experiment?",
@@ -227,6 +324,23 @@ input.ca:checked ~ .pane-a,input.cb:checked ~ .pane-b{display:block}
 .k-md code{background:#f3ecd2;border-radius:3px;padding:0 3px;font-size:11px}
 .k-md hr{border:none;border-top:1px dashed #d9c76a}
 .k-md b{color:#5b4a00}
+/* ===== 反模式层（警示红，与知识卡橙区分）===== */
+.ap-layer{margin:26px 0 10px}
+.ap-bar{background:#fdeaea;border:1px solid #f0d5d5;border-radius:8px 8px 0 0;padding:8px 14px;font-size:13.5px;font-weight:600;color:#7a1f1f}
+.ap{background:#fff;border:1px solid #f0d5d5;border-top:none;overflow:hidden}
+.ap:last-of-type{border-radius:0 0 10px 10px}
+.ap-hd{display:flex;gap:9px;align-items:flex-start;padding:11px 14px;background:#fdf4f4;border-bottom:1px solid #f5dede}
+.ap-ico{flex:0 0 auto;width:21px;height:21px;border-radius:50%;background:#a32d2d;color:#fff;font-size:12.5px;display:flex;align-items:center;justify-content:center;margin-top:2px;font-weight:700}
+.ap-ttl{font-size:14px;font-weight:600;color:#7a1f1f;line-height:1.45}
+.ap-ttl span{display:block;font-size:11.5px;color:#a32d2d;font-weight:400;margin-top:2px}
+.ap-bd{padding:10px 14px}
+.ap-row{display:flex;gap:8px;margin:7px 0;font-size:13.5px;align-items:flex-start}
+.ap-k{flex:0 0 76px;color:#9a7b7b;font-size:12.5px;padding-top:2px}
+.ap-v{flex:1}
+.ap-v em{font-style:normal;background:#fdeaea;padding:1px 5px;border-radius:3px;color:#7a1f1f}
+.ap-ft{border-top:1px dashed #f0dada;margin-top:9px;padding-top:7px;font-size:11.5px;color:#9a7b7b}
+.ap-more{background:#fdf4f4;border:1px solid #f0d5d5;border-top:none;border-radius:0 0 8px 8px;padding:7px 14px;font-size:12px;color:#8a6a6a}
+.ap-inline{background:#fdeaea;border-left:3px solid #a32d2d;border-radius:0 6px 6px 0;padding:6px 12px;margin-top:9px;font-size:13px;color:#7a1f1f}
 """
 
 HTML = """<!DOCTYPE html><html lang="zh"><head><meta charset="utf-8">
@@ -248,7 +362,7 @@ HTML = """<!DOCTYPE html><html lang="zh"><head><meta charset="utf-8">
 
 <h2>三、逐题解析（每题 3 卡，📖页签=原卡全文）</h2>
 %s%s%s%s
-
+%s
 <h2>词汇缺口记录</h2>
 <p>volatile organic compounds (VOCs) 挥发性有机化合物｜anticipate 预料｜biomass 生物量｜get a shift on 赶紧加速（英式口语）｜speedsters 快跑者｜resource-intensive 资源密集型的</p>
 
@@ -256,8 +370,12 @@ HTML = """<!DOCTYPE html><html lang="zh"><head><meta charset="utf-8">
 
 <div class="note">⭐ 给这次解析打个分。一共 5 颗星，你觉得值几颗？直接回复「X 星」就行——不满意的地方也欢迎说，说了才能改。</div>
 <div class="note">💬 以上分析有任何不懂的地方——术语、原理、某个判断的依据——尽管问，问到底都行。想知道某段怎么概括出来的、干扰项怎么构造的，直接问。</div>
-</body></html>""" % (CSS, "".join(stick_html[c] for c in ["B034", "B042", "A003"]), "".join(para_html), Q32, Q33, Q34, Q35)
+</body></html>""" % (CSS, "".join(stick_html[c] for c in ["B034", "B042", "A003"]), "".join(para_html), Q32, Q33, Q34, Q35, AP_LAYER)
 
-out = r"C:/Users/ASUS/Desktop/巴蜀D篇解析/开源版重跑-巴蜀D篇.html"
+OUT_DIR = os.environ.get("RA_OUT_DIR", os.path.join(_ROOT, "dist", "analysis"))
+OUT_NAME = os.environ.get("RA_OUT_NAME", "开源版重跑-巴蜀D篇.html")
+os.makedirs(OUT_DIR, exist_ok=True)
+out = os.path.join(OUT_DIR, OUT_NAME)
 io.open(out, "w", encoding="utf-8", newline="").write(HTML)
-print("written:", len(HTML), "chars")
+print("written:", len(HTML), "chars ->", out)
+print("反模式命中:", AP_HITS or "无（条件触发，未渲染反模式层）")
