@@ -147,9 +147,13 @@ def build_checks(root, export):
         markers, src = _load_markers(export if has_export else root, root)
         if not markers:
             return False, "未找到标记清单 → 本次未查（不是通过）。请配包外配置"
+        # 跳过目录与审计工具保持一致（**也从配置读**，否则又是一份会走样的清单）：
+        # 实测踩到过：只跳 .git/__pycache__/dist/node_modules 时，扫到了 `.audit_history/` 里的
+        # 审计快照（含本机路径）→ 报出 3 处假阳性。那些快照是 gitignored、从不发布的本地历史。
+        skip = set(_load_skip_dirs(export if has_export else root))
         hits = []
         for dp, dirs, files in os.walk(export):
-            dirs[:] = [d for d in dirs if d not in (".git", "__pycache__", "dist", "node_modules")]
+            dirs[:] = [d for d in dirs if d not in skip]
             for fn in files:
                 fp = os.path.join(dp, fn)
                 try:
@@ -172,6 +176,21 @@ def build_checks(root, export):
         ("跨轮", "开源包零内部标记（清单取自包外）", export_has_no_internal_markers),
     ]
     return CHECKS
+
+
+def _load_skip_dirs(base):
+    """跳过目录读配置（与审计工具同源）；读不到给一份保守默认。"""
+    for p in (os.path.join(base, "_audit.json"),
+              os.path.expanduser("~/.workbuddy/skills-config/reading-analysis.audit.json")):
+        if os.path.isfile(p):
+            try:
+                cfg = json.load(io.open(p, encoding="utf-8"))
+            except Exception:
+                continue
+            sd = [str(x) for x in (cfg.get("skip_dirs") or []) if str(x).strip()]
+            if sd:
+                return sd
+    return [".git", "__pycache__", "dist", "node_modules", ".audit_history"]
 
 
 def _load_markers(export, root):
