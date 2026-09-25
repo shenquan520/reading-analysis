@@ -185,7 +185,15 @@ def build_checks(root, export):
 
         口径声明（诚实优先）：`待核` 是**合法状态**（说明称已落地但凭证定位不到），
           它不会被这条门禁判红——它是**给人排队的队列**，由 `gap_ledger.py --verify` 逐条催办。
-          **门禁管「不许假称已落地」，人管「把这 4 条真落地」。**
+          **门禁管「不许假称已落地」，人管「把待核的那几条真落地」。**
+
+        ★ 第十四轮 N1 补：**队列必须有时限，否则「待核」会变成新形态的回头账**
+          （从「散落在 case 里没人跟」变成「挂在队列里没人跟」——形态变了，性质没变）。
+          所以：① `待核` 行**必须**写挂起日期 `挂：2026-09-25`（缺了 → `NO-PENDING-DATE`）；
+                ② 超过阈值（默认 7 天，`--pending-days`）仍在队列 → **升级为催办头条**
+                  （**不判红**——按审核方口径「不是判红，是让它出现在每轮报告头条」，
+                   像「某卡被提 N 条」那样自己冒出来）。
+          本条判据此刻仍为 PASS，但消息里会带 ⚠️ 与天数，别让它悄悄绿着。
 
         台账不随包发布（引用内部案例内容）→ 第三方包里**如实报 SKIP**，不默认绿。
         """
@@ -204,15 +212,24 @@ def build_checks(root, export):
         # ⑥ 先跑自测夹具：夹具不过 → 后面的绿没有意义（空转的门禁比没有门禁更坏）
         if not mod.selftest():
             return False, "❌ 台账核验**自测夹具没过** → 这 5 项检查抓不出东西，绿也是假的"
+        _fx = mod.SELFTEST_RESULT
+        fx_s = "%s/%s" % (_fx.get("passed", "?"), _fx.get("total", "?"))
         gaps = mod.extract_gaps(root)
         problems, rows = mod.check(root, gaps)
         n_case = len(set(g[0] for g in gaps))
         vp, stats = mod.verify_ledger(root)
         if problems:
             return False, f"❌ 台账 {len(rows)} 行 / 声明缺口的 case {n_case} 个：{problems[:2]}"
+        # 第十四轮 N1：队列有时限——逾期的**不判红**，但要在消息里冒出来（不然它无限期挂绿）
+        overdue = stats.get("overdue") or []
+        tail = f"待核 {stats['pending']} 行（人工队列）"
+        if overdue:
+            who = "、".join("%s(%d天)" % (g, d) for g, d in overdue[:4])
+            tail = ("⚠️ 待核 %d 行中 **%d 行已超 %d 天**：%s —— 队列已逾期，请处理"
+                    % (stats["pending"], len(overdue), stats.get("pending_days", 7), who))
         return True, (f"台账 {len(rows)} 行，覆盖 {n_case} 个 case；"
                       f"已落地 {stats['landed']} 行**每条都有可定位凭证**（锚点逐字命中）；"
-                      f"待核 {stats['pending']} 行（人工队列）；自测夹具 7/7 ✅")
+                      f"{tail}；自测夹具 {fx_s} ✅")
 
     def two_versions_identical():
         if not has_export:
