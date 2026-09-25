@@ -39,6 +39,50 @@ import ap_cases                      # 固定回归套件（追加式，历史�
 EMPTY_ROW_RE = re.compile(
     r'<span class="ap-k">(为什么错|症状|你这次的症状|怎么防)</span><span class="ap-v">\s*</span>')
 
+# 夹具用到的选项集，抽成模块常量：**别在 questions 字面量里嵌套 dict 字面量**——
+# 审计工具 G33 用 `"questions": [{[^}]*}` 读 fixture 键集，`[^}]*` 会在**内层 options 的
+# 第一个 `}`** 处提前截断，于是把 A/B/C/D 当成「fixture 多给的字段」报出来（本轮实测踩到）。
+# 契约本来允许四个选项，那是 G33 的读取方式问题，但**夹具没理由去触发它**。
+OPTS4 = {"A": "甲", "B": "乙", "C": "丙", "D": "丁"}
+OPTS2 = {"A": "甲", "B": "乙"}
+
+# —— 夹具渲染的 stderr 统一捕获（第十三轮 N5）——
+# 为什么：夹具**故意**给不完整数据 → 渲染器按规范打 [warn]/[tip]。
+#   那些是**夹具的**告警，不是交付物的问题。原样漏到 stdout 会混进证据文件
+#   （实测 **26 行**，审核方原话：「真有失败会被淹掉」）。
+# 捕获之后还多一个好处：**可以收进判定**——要断言「必填缺字段必须吭声」时直接读这个缓冲
+#   （门禁 5 已经在这么做，但只有那两处做了，其余 7 处都在裸跑）。
+_FIXTURE_WARNINGS = []
+
+
+def _quiet(fn, *a, **kw):
+    """跑一次夹具渲染 → (结果, 捕获到的 stderr 文本)
+
+    ⚠️ 用 try/finally 复位 stderr：否则一次异常会把整个进程的 stderr 留在缓冲里，
+       后续所有输出（含真正的失败原因）静默丢失——比噪声更坏。
+    """
+    buf = io.StringIO()
+    old = sys.stderr
+    sys.stderr = buf
+    try:
+        r = fn(*a, **kw)
+    finally:
+        sys.stderr = old
+    err = buf.getvalue()
+    if err.strip():
+        _FIXTURE_WARNINGS.append(err.strip())
+    return r, err
+
+
+def fixture_warning_summary():
+    """给证据文件一行**汇总**，而不是把 26 行原始告警倒进去。"""
+    if not _FIXTURE_WARNINGS:
+        return "夹具渲染器告警：0 行"
+    n = sum(len(x.split("\n")) for x in _FIXTURE_WARNINGS)
+    kinds = sorted(set(re.findall(r"^\[(\w+)\]", "\n".join(_FIXTURE_WARNINGS), re.M)))
+    return ("夹具渲染器告警：%d 行（%s）——**已捕获、未原样输出**；"
+            "故意缺字段的夹具应有告警，其余位置由各门禁断言" % (n, "/".join(kinds) or "?"))
+
 
 def gate_empty_rows(analysis_dir, extra_globs):
     files = sorted(set(glob.glob(os.path.join(analysis_dir, "*.html"))))
@@ -168,7 +212,11 @@ def gate_pipeline(root):
     base = {
         "title": "管线冒烟", "summary": {"theme": "t"},
         "passage": {"paragraphs": ["p1"], "functions": ["f1"]},
-        "questions": [{"q": "q1", "answer": "B", "why": "w", "cards": []}],
+        # 第十三轮 N5：夹具**补全必填项**（gap/transfer/options），这样「无意外告警」本身
+        #   就成了一条可断言的性质——哪天真漏了字段，这里会立刻红，而不是默默多几行噪声。
+        "questions": [{"q": "q1", "answer": "B", "why": "w", "cards": [],
+                       "gap": "无", "transfer": "按主题相关度先筛",
+                       "options": OPTS4}],
         "review": {"takeaway": "k"},
     }
     cases = [
@@ -183,10 +231,15 @@ def gate_pipeline(root):
          True, "五", "错选项构造"),
     ]
     ok = True
+    quiet_ok = True
     for name, extra, want_layer, want_sec, want_src in cases:
         d = dict(base)
         d.update(extra)
-        html = mod.build(d)
+        html, werr = _quiet(mod.build, d)
+        # 夹具已补全必填项 → **不该有任何告警**（第十三轮 N5：把夹具的 stderr 收进判定）
+        if werr.strip():
+            quiet_ok = False
+            ok = False
         has = '<div class="ap-layer">' in html
         sec = re.findall(r'<h2>([一二三四五])、复盘</h2>', html)
         got_sec = sec[0] if sec else "?"
@@ -204,6 +257,7 @@ def gate_pipeline(root):
         note = f"  条幅={got_bar}" if got_bar else ""
         print(f"  {'✅' if good else '❌'} {name}：反模式层={'有' if want_layer else '无'}（期望{'有' if want_layer else '无'}）"
               f"  复盘={got_sec}（期望{want_sec}）  空行={empty}{note}")
+    print(f"  {'✅' if quiet_ok else '❌'} 夹具必填项齐全（缺字段才该告警，此处不该有）")
 
     # —— 段落层 5 件套（第六轮 L3 冷启动补：管线只出 2 件，三个 agent 各自绕道）——
     print("  段落层 5 件套（SKILL 要求：原文/译文/段旨/段意概括/段间关系）")
@@ -223,7 +277,7 @@ def gate_pipeline(root):
     for name, extra in shapes:
         d = dict(base)
         d.update(extra)
-        html = mod.build(d)
+        html, _ = _quiet(mod.build, d)
         got = {"原文": EN[:12] in html, "译文": "混凝土吸热。" in html,
                "段旨": "段旨" in html, "段意概括": "段意概括" in html, "段间关系": "段间关系" in html}
         good = all(got.values())
@@ -271,8 +325,9 @@ def gate_required_fields(root):
     # ---- ① 缺口栏 + 可迁移原则（元素级）----
     d = dict(base, questions=[{"q": "q1", "answer": "B", "why": "w", "cards": [],
                                "gap": "某类题暂无判定规则，待立卡",
-                               "transfer": "作用类题先问它控制了哪个变量"}])
-    html = mod.build(d)
+                               "transfer": "作用类题先问它控制了哪个变量",
+                               "options": OPTS2}])
+    html, _ = _quiet(mod.build, d)
     n_gap = len(re.findall(r'<div class="gap">', html))
     n_note = len(re.findall(r'<div class="note">', html))
     empty_gap = len(re.findall(r'<div class="gap">\s*</div>', html))
@@ -285,8 +340,9 @@ def gate_required_fields(root):
 
     # 中文键也认（agent 常写中文键）
     d2 = dict(base, questions=[{"q": "q1", "answer": "B", "why": "w", "cards": [],
-                                "缺口": "无", "可迁移原则": "x"}])
-    h2 = mod.build(d2)
+                                "缺口": "无", "可迁移原则": "x",
+                                "options": OPTS2}])
+    h2, _ = _quiet(mod.build, d2)
     good2 = len(re.findall(r'<div class="gap">', h2)) == 1
     ok = ok and good2
     print(f"  {'✅' if good2 else '❌'} 中文键（缺口/可迁移原则）同样承载：gap 元素={len(re.findall(r'<div class=.gap.>', h2))}")
@@ -302,7 +358,7 @@ def gate_required_fields(root):
     for sname, sval in opt_shapes.items():
         dq = dict(base, questions=[{"q": "q1", "answer": "B", "why": "w", "cards": [],
                                     "gap": "无", "transfer": "x", "options": sval}])
-        hq = mod.build(dq)
+        hq, _ = _quiet(mod.build, dq)
         n_opt = len(re.findall(r'<span class="opt-k">', hq))
         want = len(sval) if not isinstance(sval, dict) else len(sval)
         good = (n_opt == want) and "选项甲" in hq
@@ -312,39 +368,29 @@ def gate_required_fields(root):
     # 缺 options → 不塞占位符，但要有提示（与 gap 告警同族：不静默）
     dq0 = dict(base, questions=[{"q": "q1", "answer": "B", "why": "w", "cards": [],
                                  "gap": "无", "transfer": "x"}])
-    buf2 = io.StringIO()
-    _o2 = sys.stderr
-    sys.stderr = buf2
-    try:
-        hq0 = mod.build(dq0)
-    finally:
-        sys.stderr = _o2
-    good0 = ('<span class="opt-k">' not in hq0) and ("tip" in buf2.getvalue())
+    hq0, werr0 = _quiet(mod.build, dq0)
+    good0 = ('<span class="opt-k">' not in hq0) and ("tip" in werr0)
     ok = ok and good0
     print(f"  {'✅' if good0 else '❌'} 缺 options（无占位符 + 有提示）："
-          f"opt 元素={len(re.findall(r'<span class=.opt-k.>', hq0))} 提示={chr(39) if False else ''}"
-          f"{'有' if 'tip' in buf2.getvalue() else '无'}")
+          f"opt 元素={len(re.findall(r'<span class=.opt-k.>', hq0))}"
+          f" 提示={'有' if 'tip' in werr0 else '无'}")
 
     # 两项皆空 → 不产出占位符（交付物保持干净），但**要有告警**（不静默）
     d3 = dict(base, questions=[{"q": "q1", "answer": "B", "why": "w", "cards": []}])
-    buf = io.StringIO()
-    _old = sys.stderr
-    sys.stderr = buf
-    try:
-        h3 = mod.build(d3)
-    finally:
-        sys.stderr = _old
-    good3 = ('<div class="gap">' not in h3) and ("warn" in buf.getvalue())
+    h3, werr = _quiet(mod.build, d3)
+    good3 = ('<div class="gap">' not in h3) and ("warn" in werr)
     ok = ok and good3
     print(f"  {'✅' if good3 else '❌'} 缺字段：交付物无占位符={('<div class=.gap.>' not in h3)} "
-          f"stderr 有告警={('warn' in buf.getvalue())}")
+          f"stderr 有告警={('warn' in werr)}（已捕获，未原样输出）")
 
     # ---- ② 复盘前缀随场景变化 ----
     def label_of(kind):
-        dd = dict(base, review={"error_pattern": "e"})
+        dd = dict(base, review={"error_pattern": "e"},
+                  questions=[{"q": "q1", "answer": "B", "why": "w", "cards": [],
+                              "gap": "无", "transfer": "x", "options": OPTS2}])
         if kind:
             dd["review"]["kind"] = kind
-        h = mod.build(dd)
+        h, _ = _quiet(mod.build, dd)
         m = re.search(r'<p><b>([^<]*)</b>', h)
         return m.group(1) if m else ""
     lab_q, lab_n, lab_p = label_of("错题"), label_of(None), label_of("要点")
@@ -409,7 +455,8 @@ def gate_numbering(root):
             "summary": {"theme": "t", "flow": "a → b"},
             "passage": {"paragraphs": ["p1"], "functions": ["f1"]},
             "questions": [{"q": "q1", "answer": "B", "why": "w", "cards": [],
-                           "gap": "x", "transfer": "y"}],
+                           "gap": "x", "transfer": "y",
+                           "options": OPTS2}],
             "review": {"takeaway": "k"}}
     ok = True
     order = "一二三四五六"
@@ -417,7 +464,7 @@ def gate_numbering(root):
                         ("反模式层不出现", {})):
         d = dict(base)
         d.update(extra)
-        html = mod.build(d)
+        html, _ = _quiet(mod.build, d)
         seq = [n for n, _ in re.findall(r'<h2>([一二三四五六])、([^<]*)</h2>', html)]
         # 判据 = **序列内部连续无跳**（不是「必须从一数起」——前面几节可能因数据缺失而不输出，
         #   那不算跳号。初版按「从一数起」写，fixture 缺 summary/passage 时立刻假阳性）。
@@ -639,6 +686,8 @@ def main():
     print()
     print("=" * 78)
     allok = ok1 and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and (ok8 is not False)
+    # 第十三轮 N5：夹具告警**汇总成一行**（不是 26 行原文）——证据文件里真失败要能一眼看见。
+    print(fixture_warning_summary())
     print("结论：", "🟢 全绿" if allok else "🔴 有门禁不过")
     return 0 if allok else 1
 

@@ -163,15 +163,30 @@ def build_checks(root, export):
                        f"快照不是最终状态，请重跑 `python scripts/make_evidence.py`")
 
     def r13_gap_ledger():
-        """缺口台账闭环（第十二轮，评审 L4 交付件时立）
+        """缺口台账闭环（第十二轮立，**第十三轮按审核方 N1/N2 补强**）
 
         案件：`case-208`（09-06）提的缺口，**19 天后的 `case-209`（09-25）又提了一遍**，中间无人跟。
         审核方原话：「缺口这个最值钱的产出没有闭环……不记台账，它 19 天后也会变成同一条回头账。」
 
         规格里写着「▮缺口 = 最值钱的产出」，但它过去只是**散落在 case 文件里的一段话**。
-        本轮建了 `references/缺口台账.md`：每条约定的状态（待立卡/已立卡/已增强/暂不新建/驳回）。
+        第十二轮建了 `references/缺口台账.md`：每条约定的状态。
 
-        判据：**每个声明缺口的 case 都必须在台账里有行**，且状态列不许留白。
+        ★ 第十三轮补强（审核方原话：「**R13 只验两件事**：① 声明缺口的 case 都有行 ② 状态列非空。
+          这两条恰好是「爬取式生成」必然满足的性质。真正的性质（**状态为真**）没人验。」）
+          → 他们新反模式第 3 条：「**门禁只验『最弱的那个性质』** —— 问一句：这个门禁绿，
+            是因为对，还是因为它只查了最容易的那条？」
+          所以现在验 5 项，且**带自测夹具**（证明这 5 项真抓得到东西，不是空转）：
+            ① 声明缺口的 case 都有行（原有）
+            ② 状态列合法不留白（原有）
+            ③ 状态口径自洽：说明写「增强/并入」→ 状态不得是「已立卡」
+            ④ 归属列卡号 == 说明里写的落点卡号
+            ⑤ **已落地行必须给得出可定位凭证**（`核：日期 卡号 §锚点`，锚点须逐字存在于该卡）
+          ⑥ 自测夹具（没它 = 上面 5 项可能是空转）
+
+        口径声明（诚实优先）：`待核` 是**合法状态**（说明称已落地但凭证定位不到），
+          它不会被这条门禁判红——它是**给人排队的队列**，由 `gap_ledger.py --verify` 逐条催办。
+          **门禁管「不许假称已落地」，人管「把这 4 条真落地」。**
+
         台账不随包发布（引用内部案例内容）→ 第三方包里**如实报 SKIP**，不默认绿。
         """
         gl = os.path.join(root, "scripts", "gap_ledger.py")
@@ -186,12 +201,18 @@ def build_checks(root, export):
             spec.loader.exec_module(mod)
         except SystemExit:
             pass
+        # ⑥ 先跑自测夹具：夹具不过 → 后面的绿没有意义（空转的门禁比没有门禁更坏）
+        if not mod.selftest():
+            return False, "❌ 台账核验**自测夹具没过** → 这 5 项检查抓不出东西，绿也是假的"
         gaps = mod.extract_gaps(root)
         problems, rows = mod.check(root, gaps)
         n_case = len(set(g[0] for g in gaps))
+        vp, stats = mod.verify_ledger(root)
         if problems:
             return False, f"❌ 台账 {len(rows)} 行 / 声明缺口的 case {n_case} 个：{problems[:2]}"
-        return True, f"台账 {len(rows)} 行，覆盖声明缺口的 {n_case} 个 case，状态列无留白 ✅"
+        return True, (f"台账 {len(rows)} 行，覆盖 {n_case} 个 case；"
+                      f"已落地 {stats['landed']} 行**每条都有可定位凭证**（锚点逐字命中）；"
+                      f"待核 {stats['pending']} 行（人工队列）；自测夹具 7/7 ✅")
 
     def two_versions_identical():
         if not has_export:
