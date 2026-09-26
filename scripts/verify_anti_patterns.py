@@ -1160,6 +1160,57 @@ def _check_template_contract(root):
     return undeclared, stale
 
 
+def _check_declared_vs_impl(root):
+    """纯检查：`_渲染说明` 里声明为「渲染」的字段名，渲染器源码里有没有。
+
+    返回 `(bogus, checked)`；取不到模板/渲染器时返回 None（= 未查）。
+
+    ★ 为什么补这条（第二十轮，做交付案例时踩到）：
+      门禁 11 只查「有没有声明」，**不查声明得对不对** —— 这是它的已知盲区
+      （docstring 里当时就写明了「不判断声明得对不对，那要人看」）。
+      但紧接着就撞上了：模板声明 `summary.stuck_sentences` 是「渲染」，
+      而渲染器里 `stuck_sentences` **一次都没出现**，写了也进不了页面。
+      与上一轮的 `user_wrong_choice` / `dual_channel` **同一类病、连着两轮** ——
+      按本项目纪律，同一类问题复发第二次就该进机制，不再靠人看。
+
+    判据的安全性（为什么不报假阳性）：
+      · 叶子名是唯一标识（`stuck_sentences` 这类不是通用词）；
+      · 通配键（`summary.*`）叶子是 `*` → 跳过；
+      · 声明为「**不渲染**」的 → 跳过（那正是它该有的归宿）；
+      · 反向不成立的概率极低：渲染器读一个字段，必然写出它的名字。
+    """
+    tpl = os.path.join(root, "references", "templates", "analysis-result.template.json")
+    impl = os.path.join(root, "scripts", "analysis_to_html.py")
+    if not os.path.isfile(tpl) or not os.path.isfile(impl):
+        return None
+    try:
+        spec = json.loads(io.open(tpl, encoding="utf-8").read()).get("_渲染说明") or {}
+    except Exception:
+        return None
+    src = io.open(impl, encoding="utf-8", errors="ignore").read()
+
+    bogus, checked = [], 0
+    for key, desc in spec.items():
+        if key.startswith("_") or not isinstance(desc, str):
+            continue
+        if "不渲染" in desc:          # 归宿就是「不渲染」→ 不该在实现里找
+            continue
+        if "渲染" not in desc:        # 说明表里其它性质的条目 → 不判
+            continue
+        # 通配键（`summary.*` / `questions[].card_names.*`）跳过：它们不对应一个具体字段名。
+        # ⚠️ 这条是**夹具**抓出来的 —— 第一版只判 `leaf == "*"`，而 rstrip 之后
+        #    `group.*` 会变成 `group`，于是通配键被当成具体字段去找，误报。
+        if key.rstrip().endswith("*"):
+            continue
+        leaf = key.rstrip(".").rstrip("[]").split(".")[-1].rstrip("[]")
+        if not leaf or leaf == "*":
+            continue
+        checked += 1
+        if leaf not in src:
+            bogus.append((key, leaf))
+    return bogus, checked
+
+
 def gate_template_render_contract(root):
     """【门禁 11】交付模板的每个字段都要有「归宿声明」（第二十轮立，2026-09-26）
 
@@ -1201,6 +1252,44 @@ def gate_template_render_contract(root):
             print(f"      ⚠️ 说明表里有 `{k}`，但模板里找不到对应字段（说明表过期了）")
         print(f"  → 未声明 {len(undeclared)} 个、过期 {len(stale)} 条")
         ok = not undeclared
+
+    # —— 第二十轮补：声明为「渲染」的，实现里得真有 ——
+    res2 = _check_declared_vs_impl(root)
+    if res2 is not None:
+        bogus, checked = res2
+        for key, leaf in bogus:
+            print(f"      ❌ 声明为「渲染」但实现里查无此字：`{key}`（叶子名 `{leaf}`）"
+                  f" —— 填了也进不了页面")
+        print(f"  → 声明为「渲染」的字段 {checked} 个，实现里查无此字的 {len(bogus)} 个")
+        if bogus:
+            ok = False
+
+    # —— 自测夹具：新加的「声明为渲染、实现里没有」判据，必须能报出来 ——
+    tmp2 = tempfile.mkdtemp(prefix="declimpl_")
+    fixture2_ok = False
+    try:
+        os.makedirs(os.path.join(tmp2, "references", "templates"), exist_ok=True)
+        os.makedirs(os.path.join(tmp2, "scripts"), exist_ok=True)
+        io.open(os.path.join(tmp2, "references", "templates",
+                             "analysis-result.template.json"), "w", encoding="utf-8").write(
+            json.dumps({"_渲染说明": {
+                "real_field": "渲染（实现里有）",
+                "ghost_field": "渲染（实现里没有 → 该报）",
+                "ghost_two": "渲染（也没有 → 该报）",
+                "not_rendered": "**不渲染**（该跳过）",
+                "group.*": "渲染（通配键该跳过）",
+            }}, ensure_ascii=False))
+        io.open(os.path.join(tmp2, "scripts", "analysis_to_html.py"), "w",
+                encoding="utf-8").write("# 只读 real_field\nX = d.get(\"real_field\")\n")
+        sub2 = _check_declared_vs_impl(tmp2)
+        got = sorted(leaf for _k, leaf in (sub2[0] if sub2 else []))
+        fixture2_ok = (got == ["ghost_field", "ghost_two"])
+        print(f"  {'✅' if fixture2_ok else '❌'} 自测夹具（声明↔实现）："
+              f"{'查无此字的报得出、不渲染与通配键不误报' if fixture2_ok else f'期望 [ghost_field, ghost_two]，实际 {got}'}")
+    finally:
+        shutil.rmtree(tmp2, ignore_errors=True)
+    if not fixture2_ok:
+        ok = False
 
     # —— 自测夹具：新加一个未声明字段，必须报出来 ——
     tmp = tempfile.mkdtemp(prefix="tplcontract_")

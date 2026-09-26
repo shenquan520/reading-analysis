@@ -71,6 +71,9 @@ th{background:#f0f4ff;font-weight:600}
 .wrong{font-size:12.5px;color:#a11;margin:2px 0}
 .wrong b{color:#a11}
 .take{background:#f0f4ff;border-radius:8px;padding:10px 14px;font-size:13px;margin:6px 0}
+.stuck{background:#fbfaf5;border:1px solid #e8e2cf;border-left:3px solid #c9a227;border-radius:6px;padding:10px 14px;font-size:13px;margin:8px 0}
+.stuck .en{font-style:italic;color:#444;display:block;margin-bottom:5px}
+.stuck .zz{margin-top:4px}
 .dual{background:#eefbf3;border-radius:8px;padding:10px 14px;font-size:13px;margin:6px 0;color:#14532d}
 .gap{background:#1a1a1a;color:#e5e7eb;border-radius:8px;padding:8px 14px;margin-top:8px;font-size:14px}
 .note{background:#f0f4ff;border-radius:8px;padding:8px 14px;margin-top:6px;font-size:13px}
@@ -105,7 +108,12 @@ CARDS_DIR = BASE.parent / 'references' / 'cards'
 
 def _inline(t: str) -> str:
     t = esc(t)
-    t = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', t)
+    # 3 个以上连续星号 → 归一成 2 个（库里有实例：B052 那句「****⚠️ 硬天花板注记…**」）。
+    # 那是 markdown 写法瑕疵，不归一的话下面正则配不上，页面上会留一串字面星号。
+    t = re.sub(r'\*{3,}', '**', t)
+    # re.S：卡原文里有跨行的加粗（例：「⚠️ 硬天花板注记：…（很长）…」跨了两行），
+    # 不加 DOTALL 就解析不到，页面上会留下字面星号。
+    t = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', t, flags=re.S)
     t = re.sub(r'`([^`]+)`', r'<code>\1</code>', t)
     return t
 
@@ -240,18 +248,58 @@ def _paragraph_blocks(data: dict):
     return blocks
 
 
+def _stuck_html(items, title="🔍 长难句剥离") -> str:
+    """长难句块：原句 → 主干剥离 → 译文。
+
+    ★ 第二十轮补实现。由来（做交付案例时踩到）：
+      README 承诺交付含「**长难句剥离**」，SKILL.md 提到 6 处（八步流程第 4 步
+      「挑 2-4 句，去修饰留主干」），模板也声明 `summary.stuck_sentences[].*` 是「渲染」——
+      **但渲染器里 `stuck_sentences` 一次都没出现**，写了也进不了页面。
+      又一处「文档承诺 ↔ 实现不符」，与门禁 12 守的那类同族。
+
+    ★ 两个位置都收（两边各有来路）：
+      · **题内** `questions[].stuck_sentences` —— SKILL.md 规范推荐：
+        「归入该题解析的『推理』段（那是它真正起作用的地方），**不单开一节** ——
+         单开会把它和题目割开，使用者看不出『这句难在哪、为什么导致选错』」。
+      · **全文层** `summary.stuck_sentences` —— 模板 `_渲染说明` 声明的位置。
+      两处都渲染、不互斥。
+    """
+    if not items:
+        return ""
+    if isinstance(items, dict):
+        items = [items]
+    rows = []
+    for it in items:
+        if isinstance(it, str):
+            rows.append(f'<span class="en">{_inline(it)}</span>')
+            continue
+        if not isinstance(it, dict):
+            continue
+        en = it.get("text") or it.get("句子") or it.get("en") or ""
+        zz = it.get("parse") or it.get("主干") or it.get("zh") or ""
+        if not en and not zz:
+            continue
+        rows.append('<div style="margin:7px 0">'
+                    + (f'<span class="en">{_inline(en)}</span>' if en else "")
+                    + (f'<div class="zz">{_inline(zz).replace(chr(10), "<br>")}</div>' if zz else "")
+                    + '</div>')
+    if not rows:
+        return ""
+    return f'<div class="stuck"><b>{title}</b>' + "".join(rows) + '</div>'
+
+
 def _para_html(b: dict) -> str:
     """单个段落块：原文 / 译文 / 段旨 badge / 段意概括 / 段间关系"""
     out = ['<div style="margin:12px 0;border:1px solid #d0d7de;border-radius:8px;overflow:hidden">']
-    badge = f'📌 段旨 · {esc(b["function"])}' if b["function"] else ''
+    badge = f'📌 段旨 · {_inline(b["function"])}' if b["function"] else ''
     out.append(f'<div class="p-func">{badge}</div>')
     out.append(f'<div style="padding:10px 12px;font-size:14px;line-height:1.9">{esc(b["en"])}</div>')
     if b["zh"]:
         out.append(f'<div class="p-zh">{esc(b["zh"])}</div>')
     if b["summary"]:
-        out.append(f'<div class="p-sum"><b>段意概括</b>：{esc(b["summary"])}</div>')
+        out.append(f'<div class="p-sum"><b>段意概括</b>：{_inline(b["summary"])}</div>')
     if b["relation"]:
-        out.append(f'<div class="p-rel"><b>段间关系</b>：{esc(b["relation"])}</div>')
+        out.append(f'<div class="p-rel"><b>段间关系</b>：{_inline(b["relation"])}</div>')
     out.append('</div>')
     return "".join(out)
 
@@ -308,20 +356,31 @@ def build(data: dict) -> str:
     out.append(f'<h1>📖 {esc(data.get("title","阅读分析"))}</h1>')
     if data.get("passage_source"):
         out.append(f'<div class="meta">来源：{esc(data["passage_source"])}</div>')
+    # 日期 + 题型（第二十轮补：模板声明「渲染（页面抬头）」「渲染（题型行）」，
+    # 但渲染器此前一次都没读 —— 是新加的「声明为渲染的字段，实现里得真有」这条判据查出来的。
+    # 对读者有用：知道这份解析是什么时候做的、针对哪种题型。）
+    _sub = " · ".join(x for x in (str(data.get("date") or "").strip(),
+                                  _inline(data.get("question_type") or "").strip()) if x)
+    if _sub:
+        out.append(f'<div class="meta">{_sub}</div>')
     # 文本层分析
     s = data.get("summary", {})
     if s:
         out.append('<h2>一、文本层分析</h2>')
         if s.get("theme"):
-            out.append(f'<p><b>主题：</b>{esc(s["theme"])}</p>')
+            out.append(f'<p><b>主题：</b>{_inline(s["theme"])}</p>')
         if s.get("flow"):
-            out.append(f'<div class="flow">🧭 <b>对象流动链：</b>{esc(s["flow"])}</div>')
+            out.append(f'<div class="flow">🧭 <b>对象流动链：</b>{_inline(s["flow"])}</div>')
         if s.get("backbone"):
-            out.append(f'<p><b>主干/枝干：</b>{esc(s["backbone"])}</p>')
+            out.append(f'<p><b>主干/枝干：</b>{_inline(s["backbone"])}</p>')
         if s.get("level_map"):
-            out.append(f'<p><b>信息层级：</b>{esc(s["level_map"])}</p>')
+            out.append(f'<p><b>信息层级：</b>{_inline(s["level_map"])}</p>')
         if s.get("register"):
-            out.append(f'<p><b>语域/文体：</b>{esc(s["register"])}</p>')
+            out.append(f'<p><b>语域/文体：</b>{_inline(s["register"])}</p>')
+        # 长难句（全文层位置：模板 `_渲染说明` 声明；题内另有一个位置，两处都收）
+        _sk2 = _stuck_html(s.get("stuck_sentences"))
+        if _sk2:
+            out.append(_sk2)
     # 段落层（**5 件套**：英文原文 / 中文译文 / 段旨 badge / 段意概括 / 段间关系）
     # 契约容忍多种写法——三个零记忆冷启动实测里，agent 各自发明了不同结构
     # （塞进 functions 字符串 / 加 paragraph_notes / 直接自拼 HTML），故这里统一归一化。
@@ -352,7 +411,11 @@ def build(data: dict) -> str:
             # why 支持换行（第二十轮统一）：同一渲染器里 takeaway 早已 `.replace('\n','<br>')`，
             # 而 why 没有 → 分段写的 why 在页面上被折叠成一整段。
             # 「同类字段的同类处理要一致」——不一致会让写的人白费格式，读的人看不出层次。
-            out.append(f'<div class="why">💡 {esc(q.get("why","")).replace(chr(10), "<br>")}</div>')
+            out.append(f'<div class="why">💡 {_inline(q.get("why","")).replace(chr(10), "<br>")}</div>')
+            # 长难句（题内位置：SKILL.md「归入该题解析的推理段，不单开一节」）
+            _sk = _stuck_html(q.get("stuck_sentences") or q.get("长难句"))
+            if _sk:
+                out.append(_sk)
             # 使用者自述（第二十轮补：**模板声明了、渲染器却不读**）
             #
             # ★ 由来：ZCode（外部工具）冷启动验收时主动报的一处落差 ——
@@ -370,7 +433,7 @@ def build(data: dict) -> str:
                 if uwc:
                     parts.append(f'你当时选的是 <b>{esc(uwc)}</b>')
                 if uth:
-                    parts.append(f'你的思路：{esc(uth).replace(chr(10), "<br>")}')
+                    parts.append(f'你的思路：{_inline(uth).replace(chr(10), "<br>")}')
                 out.append('<div class="mine">🗣 ' + '　'.join(parts) + '</div>')
             cards = [c.get("id","") if isinstance(c, dict) else c for c in q.get("cards", [])]
             uses = {u.get("id",""): u.get("use","") for u in q.get("card_uses", []) if isinstance(u, dict)}
@@ -391,7 +454,7 @@ def build(data: dict) -> str:
                                        f'<label class="tablabel la" for="{uid}a">🎯 本题运用</label>'
                                        f'<input class="tabr cb" type="radio" name="{uid}" id="{uid}b">'
                                        f'<label class="tablabel lb" for="{uid}b">📖 知识原理</label>'
-                                       f'<div class="pane pane-a">{esc(use)}</div>'
+                                       f'<div class="pane pane-a">{_inline(use)}</div>'
                                        f'<div class="pane pane-b">{body}</div>'
                                        f'</div></details>')
                         else:
@@ -402,7 +465,7 @@ def build(data: dict) -> str:
             if apq:
                 out.append(aps.hint(apq, AP_INDEX))
             for w in q.get("wrong_options", []):
-                out.append(f'<div class="wrong">✗ {esc(w.get("opt",""))} — {esc(w.get("reason",""))}</div>')
+                out.append(f'<div class="wrong">✗ {esc(w.get("opt",""))} — {_inline(w.get("reason",""))}</div>')
             # 缺口栏 + 可迁移原则（**逐题必填**，第十一轮 L3-1）
             #
             # 为什么在这里：SKILL.md 写着「▮缺口栏 + 🎯可迁移原则（逐题必填）」，
@@ -414,9 +477,9 @@ def build(data: dict) -> str:
             transfer = (q.get("transfer") or q.get("可迁移原则") or q.get("transferable") or "").strip()
             if gap or transfer:
                 # 缺口「无则写 无」是规范用词，空值渲染成「无」而不是空行
-                out.append(f'<div class="gap">▮缺口：{esc(gap or "无")}</div>')
+                out.append(f'<div class="gap">▮缺口：{_inline(gap or "无")}</div>')
                 if transfer:
-                    out.append(f'<div class="note">🎯 可迁移原则：{esc(transfer)}</div>')
+                    out.append(f'<div class="note">🎯 可迁移原则：{_inline(transfer)}</div>')
             else:
                 missing_gap.append(i + 1)
             out.append('</div>')
@@ -443,9 +506,9 @@ def build(data: dict) -> str:
             #   **当时只修了条幅那一处，复盘前缀漏了**。
             label = REVIEW_LABELS.get((r.get("kind") or r.get("scenario") or "").strip(),
                                       REVIEW_LABELS["__neutral__"])
-            out.append(f'<p><b>{label}</b>{esc(r["error_pattern"])}</p>')
+            out.append(f'<p><b>{label}</b>{_inline(r["error_pattern"])}</p>')
         if r.get("takeaway"):
-            out.append('<div class="take">🎯 <b>可迁移原则：</b><br>' + esc(r["takeaway"]).replace('\n', '<br>') + '</div>')
+            out.append('<div class="take">🎯 <b>可迁移原则：</b><br>' + _inline(r["takeaway"]).replace('\n', '<br>') + '</div>')
         # 双通道验证（第二十轮补：**模板声明了、渲染器也不读** —— 与 user_thinking 同批发现）
         #
         # ★ 由来：ZCode（外部工具）冷启动验收时报的「落差」指向自述字段，
@@ -457,7 +520,7 @@ def build(data: dict) -> str:
         dc = str(r.get("dual_channel") or "").strip()
         if dc:
             out.append('<div class="dual">🔀 <b>双通道验证：</b><br>'
-                       + esc(dc).replace(chr(10), '<br>') + '</div>')
+                       + _inline(dc).replace(chr(10), '<br>') + '</div>')
     # 追问提示条（每次交付必带）
     out.append('<div style="margin-top:28px;background:#f0f4ff;border:1px solid #d0e2ff;border-radius:10px;padding:12px 16px;font-size:13px;color:#1f2328">💬 <b>看不懂的尽管问。</b>以上任何术语、原理、判断依据，都可以拿去追问 AI——比如"这段怎么概括出来的""这个干扰项怎么构造的"。不懂就问，问到底都行。</div>')
     # 评分提示（2026-09-02：每次交付必带，放最后）

@@ -9,7 +9,9 @@
     "question_type": "渲染（题型行）",
     "summary": "渲染（全文层分组；下含 6 项）",
     "summary.*": "渲染（全文层：主题/流动链/主干/层级/语域 五项）",
-    "summary.stuck_sentences[].*": "渲染（长难句：text 原句 + parse 主干剥离与译文）",
+    "summary.stuck_sentences[].*": "渲染（长难句·全文层位置：text 原句 + parse 主干剥离与译文）",
+    "questions[].stuck_sentences": "渲染（长难句·**题内位置**；SKILL.md 规范推荐放这里——「归入该题解析的推理段，不单开一节」）",
+    "questions[].stuck_sentences[].*": "渲染（同全文层：text 原句 + parse 主干剥离与译文）",
     "passage": "渲染（段落层分组）",
     "passage.paragraphs": "渲染（段落层 5 件套之一：原文）",
     "passage.functions": "渲染（段落层 5 件套之一：段旨）",
@@ -77,6 +79,7 @@
         {"opt": "B", "reason": "错因：无中生有/偷换概念/程度越界/张冠李戴（写明哪一种+证据）"}
       ],
       "options": {"A": "（提示级可选）选项原文", "B": "…", "C": "…", "D": "…"},
+      "stuck_sentences": [{"text": "（可选）这一题里卡住你的那句原文", "parse": "主干剥离 + 从句结构 + 译文"}],
       "gap": "**（逐题必填）** 缺口：用到了但卡里没有的判断；**没有就写「无」**——规范称它是「最值钱的产出」",
       "transfer": "**（逐题必填）** 可迁移原则：这道题的解法能迁到哪类题",
       "anti_patterns": ["（可选）本题命中的反模式编号，如 AP-02；由 agent 判定后显式指定"],
