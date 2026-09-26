@@ -349,11 +349,64 @@ def build_checks(root, export):
         probe_s = m_probe.group(0).replace("**", "") if m_probe else "探针全验过"
         return True, f"夹具 4/4 ✅ + {probe_s}、无洗白 ✅"
 
+    def r15_card_library_not_stale():
+        """R15 · 开源包卡库不比本地落后（第十八轮立）
+
+        由来：卡库（`references/cards/`）**从来不在 `sync_export.py` 的同步清单里** ——
+        它靠手工复制。实测：公开包卡库停在 **2026-09-24 22:22**，而本地此后真改过 **11 张**
+        （含本地已修好的**编号跳号/标题粘连**）。**漂移一直存在，只是从没被人看过一眼。**
+
+        为什么会这样：**没人在收口链路上跑过开源包的卡库卫生门禁**。一跑就报
+        「6 处跳号 + 2 处粘连」，本地是 0/0/0 —— **同一个病**（检查器不在链路上 = 等于没有）。
+
+        ★ 判据用**时间**，不用内容比对：公开包是**手工深度脱敏**过的，与本地天然不同文本；
+          用「脱敏后是否逐字节相同」判会把**设计如此**也当成「旧」（我第一版就这么量错，虚报了近十倍）。
+          时间没这个问题。
+
+        三态：本地无卡库 / 无公开包 → **SKIP（不判红）**；有漂移 → 判红并列出前几张。
+        """
+        local_cards = os.path.join(root, "references", "cards")
+        exp = os.path.join(root, "github-export")
+        exp_cards = os.path.join(exp, "references", "cards")
+        if not os.path.isdir(local_cards) or not os.path.isdir(exp_cards):
+            return SKIP, "本地或公开包无 references/cards → 未查"
+        # 公开包卡库的最后提交时刻（= 上次同步到公开包的时点）
+        try:
+            r = subprocess.run(["git", "-C", exp, "log", "-1", "--format=%ct",
+                                "--", "references/cards"],
+                               capture_output=True, text=True, timeout=30)
+            cut = int((r.stdout or "").strip() or 0)
+        except Exception:
+            cut = 0
+        if not cut:
+            # 还没提交过卡库（新克隆/新仓库）→ 用工作区最新改动兜底
+            cut = max((os.path.getmtime(os.path.join(dp, f))
+                       for dp, _d, fs in os.walk(exp_cards) for f in fs), default=0)
+        drift = []
+        for dp, dirs, fs in os.walk(local_cards):
+            dirs[:] = [d for d in dirs if d != "_archive"]
+            for f in fs:
+                if not f.endswith(".md"):
+                    continue
+                p = os.path.join(dp, f)
+                # 公开包缺这张，或本地在这之后改过 → 落后
+                if not os.path.isfile(os.path.join(exp_cards, os.path.relpath(p, local_cards))) \
+                        or os.path.getmtime(p) > cut:
+                    drift.append(os.path.relpath(p, local_cards))
+        if not drift:
+            import datetime as _dt
+            return True, (f"卡库未落后（公开包上次同步 "
+                          f"{_dt.datetime.fromtimestamp(cut):%Y-%m-%d %H:%M}）")
+        return False, (f"❌ **{len(drift)} 张卡本地比公开包新**（公开包卡库未跟着走）："
+                       + "、".join(sorted(drift)[:5])
+                       + "　→ 卡库**不在同步清单里**，需单独处理（勿裸 cp，先过脱敏）")
+
     CHECKS = [
         ("R11", "必填项承载力：缺口栏+可迁移原则", r11_required_fields_carried),
         ("R12", "证据文件不早于最后一次提交", r12_evidence_not_stale),
         ("R13", "缺口台账闭环（最值钱产出的状态）", r13_gap_ledger),
         ("R14", "替换表不许洗白真违规（含它自己的结构性弱点）", r14_laundering_check),
+        ("R15", "开源包卡库不比本地落后", r15_card_library_not_stale),
         ("R3", "账本无具体值回声", r3_no_echo_in_ledger),
         ("R5", "9 条真实自述全命中（当时 4/9）", r5_self_reports),
         ("R5", "AP-12 症状不静默消失（含解析器多行合并）", r5_ap12_symptom_present),
