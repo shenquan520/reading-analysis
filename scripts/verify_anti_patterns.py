@@ -30,7 +30,9 @@ import importlib.util
 import io
 import os
 import re
+import shutil
 import sys
+import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -650,6 +652,80 @@ def gate_card_hygiene(root):
     ok = fixture_ok and not (bad_dup or bad_num or bad_glue)
     if not fixture_ok:
         print("      ⚠️ 夹具没过 = 这道门禁查不出东西，绿了也不代表安全")
+
+    # —— 判据 ④：卡文件 ↔ 索引登记一致性（2026-09-26 第十九轮补）——
+    #
+    # 由来：封版前查「索引里的数字对不对」，顺手发现 **B086 有卡文件、索引表格里没有它那一行**。
+    #   那次转正 B086 时只改了索引的**说明行**（「86 张（B001–B086）」）、**忘了加表格行** ——
+    #   又一个「改了一处、没改配套的另一处」。
+    #   ★ 而 INDEX 是「分析任何题目**必先来这里检索**」的入口 →
+    #     **漏登记 = 这张卡在实际使用中检索不到**（不是排版问题，是功能问题）。
+    #   前三条判据查「卡内容本身」，**都不查「卡有没有被登记」**——这个射程此前无人守。
+    #
+    # 判据（兼容两种索引格式，不猜）：
+    #   目录下每个卡文件的**编号**或**文件名主干**，必须在对应索引里出现一次。
+    #   · B/A 系用表格式 `| 086 | …`
+    #   · R 系用链接式 `[R1-what](R1-what.md)`
+    #   任一形式命中即算登记 → 两种格式都能过，不会误报。
+    INDEXES = {"B-skills": "INDEX.md", "A-analysis": "INDEX.md", "REVIEW": "00-index.md"}
+
+    def _scan_index(cards_root):
+        """返回 {子目录: (卡文件列表, 未登记的列表)}"""
+        out = {}
+        for sub, idxname in INDEXES.items():
+            d = os.path.join(cards_root, sub)
+            if not os.path.isdir(d):
+                continue
+            idx = os.path.join(d, idxname)
+            if not os.path.isfile(idx):
+                out[sub] = (["<索引文件缺失>"], ["<索引文件缺失>"])
+                continue
+            itext = io.open(idx, encoding="utf-8").read()
+            cards = []
+            for f in sorted(os.listdir(d)):
+                if not f.endswith(".md") or f in ("INDEX.md", "00-index.md", "card-template.md"):
+                    continue
+                stem = os.path.splitext(f)[0]
+                m = re.match(r"([A-Za-z]*)(\d+)", stem)
+                num = m.group(2) if m else ""
+                # 命中任一种登记形式即算已登记
+                hit = (stem in itext) or (num and re.search(r"\|\s*0*%s\s*\|" % num, itext))
+                if not hit and num:
+                    hit = bool(re.search(r"[\[\(][^\]\)]*%s[^\]\)]*[\]\)]" % re.escape(stem), itext))
+                cards.append((f, hit))
+            unreg = [f for f, hit in cards if not hit]
+            out[sub] = ([f for f, _ in cards], unreg)
+        return out
+
+    # 自测夹具：造「有卡但索引没登记」的假场景 → 必须报
+    _fake_root = tempfile.mkdtemp(prefix="idxfix_")
+    try:
+        _fd = os.path.join(_fake_root, "B-skills")
+        os.makedirs(_fd)
+        io.open(os.path.join(_fd, "001-a.md"), "w", encoding="utf-8").write("# A\n")
+        io.open(os.path.join(_fd, "002-b.md"), "w", encoding="utf-8").write("# B\n")
+        io.open(os.path.join(_fd, "INDEX.md"), "w", encoding="utf-8").write(
+            "| 编号 | 卡名 |\n|---|---|\n| 001 | 甲 |\n")      # 只登记 001
+        _r = _scan_index(_fake_root)
+        idx_fix_ok = _r.get("B-skills", (None, []))[1] == ["002-b.md"]
+    finally:
+        shutil.rmtree(_fake_root, ignore_errors=True)
+    print(f"  {'✅' if idx_fix_ok else '❌'} 自测夹具：索引漏登记能被检出"
+          f"（假场景：001 已登记 / 002 未登记）")
+
+    unreg_all = []
+    if os.path.isdir(cards_dir):
+        for sub, (cards_, unreg) in _scan_index(cards_dir).items():
+            if unreg:
+                unreg_all.append((sub, unreg))
+    if unreg_all:
+        print(f"  ❌ **有卡但索引没登记**（索引是检索入口，漏登记＝这张卡用不上）：")
+        for sub, unreg in unreg_all:
+            print(f"      · {sub}/：{len(unreg)} 张未登记 → {unreg[:5]}")
+    else:
+        print("  ✅ 卡文件与索引登记一致（三个子目录全过）")
+
+    ok = ok and idx_fix_ok and not unreg_all
     return ok
 
 
