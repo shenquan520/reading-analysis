@@ -2,7 +2,7 @@
 
 把英语阅读题交给 AI 分析的方法卡体系：高考 / 四六级 / 考研通用。
 
-**当前版本：v2.1.2**（2026-09-26）· 更新历史见 [CHANGELOG.md](CHANGELOG.md) 与 [Releases](../../releases)
+**当前版本：v2.1.3**（2026-09-26）· 更新历史见 [CHANGELOG.md](CHANGELOG.md) 与 [Releases](../../releases)
 
 ## 一、解决什么问题
 
@@ -21,7 +21,11 @@
 三种方式任选，详见 `USER-GUIDE.md`：
 
 1. **网页对话**：复制 `SKILL.md` 全文，粘进任意 AI 对话框（豆包/DeepSeek/Kimi/ChatGPT），然后发题。每次开新对话需重粘
-2. **装成 Skill**（WorkBuddy / Claude Code / Cursor）：整个文件夹放进工具的 skills 目录（如 `~/.workbuddy/skills/reading-analysis/`）
+2. **装成 Skill**（支持 skills / 能读文件的工具都行：WorkBuddy / Claude Code / Cursor / ZCode / Codex …）：
+   **装的是整个文件夹，不是单个文件** —— 它要读 `references/` 里的卡库。
+   放进工具的 skills 目录（WorkBuddy：`~/.workbuddy/skills/reading-analysis/`）；
+   **不确定目录在哪**：把文件夹放进你的项目目录，然后对 AI 说「读 `SKILL.md`，按它干活」，一样能跑。
+   装完**开个新会话**才会被发现。
 3. **RAG / API**：把 `references/cards/` 挂成知识库，`SKILL.md` 作为 system prompt
 
 ## 四、使用方法

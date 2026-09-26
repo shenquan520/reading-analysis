@@ -933,6 +933,48 @@ def _parse_kb_tree(text):
     return out
 
 
+def _docref_scan_text(text, doc, inpack, filler_prefix, filler_files, placeholder_re, ref_re):
+    """门禁 10 的**唯一判据实现**：扫一段文档文本，返回悬空引用清单。
+
+    ★ 为什么抽成函数（第二十轮，2026-09-26）：
+      原先把判据在「主逻辑」和「自测夹具」里**各写了一遍**（复制粘贴）。
+      夹具验证不了实现 —— 实现改了、夹具还是老逻辑，照样报「夹具通过」。
+      这类「夹具与实现不同源」正是本项目的靶心（**能空转的门禁等于没有门禁**）。
+      → 现在主逻辑与夹具都调这一个函数。
+
+    四种写法都算「指令性引用」（第三、四种是第二十轮补的）：
+      ① 反引号包裹：`` `references/x.md` ``
+      ② 带目录前缀（无反引号）：`scripts/foo.py`
+      ③ **裸写的脚本名**：`skill_audit.py` ← 第二十轮之前**不查**，
+         所以「SKILL.md 让读者去跑一个包里没有的脚本」藏了很久（外部工具实测踩到）
+      ④ 缩进树文件地图：由 `_parse_kb_tree()` 单独解析（**目录也算存在**，树里列的是目录）
+    """
+    missing = []
+
+    def resolvable(ref):
+        if ref.startswith(filler_prefix) or ref in filler_files:
+            return True
+        if placeholder_re.search(ref):
+            return True
+        cands = [ref, os.path.join(os.path.dirname(doc), ref).replace("\\", "/"),
+                 os.path.normpath(os.path.join(os.path.dirname(doc), ref)).replace("\\", "/")]
+        if any(c in inpack for c in cands):
+            return True
+        if "/" in ref:                                  # 后缀匹配：文档大量用相对简写
+            return any(p.endswith("/" + ref) for p in inpack)
+        return any(os.path.basename(p) == ref for p in inpack)
+
+    checked = 0
+    for m in ref_re.finditer(text):
+        ref = (m.group(1) or m.group(2) or m.group(3) or "").strip()
+        if not ref or ref.endswith("/"):
+            continue
+        checked += 1
+        if not resolvable(ref):
+            missing.append(ref)
+    return missing, checked
+
+
 def gate_doc_references(root):
     """【门禁 10】文档里的**指令性引用**必须真存在（第二十轮立，2026-09-26）
 
@@ -959,8 +1001,15 @@ def gate_doc_references(root):
     PLACEHOLDER_RE = re.compile(r"(NNN|XXX|\*)")
 
     REF_RE = re.compile(
-        r"`([A-Za-z0-9_\-./]+\.(?:md|py|js|json|html))`"          # 反引号包裹
-        r"|(?<![\w/`])((?:references|scripts)/[A-Za-z0-9_\-./]+)")  # 带目录前缀
+        r"`([A-Za-z0-9_\-./]+\.(?:md|py|js|json|html))`"            # ① 反引号包裹
+        r"|(?<![\w/`])((?:references|scripts)/[A-Za-z0-9_\-./]+)"    # ② 带目录前缀
+        # ③ **裸写的脚本名**（无反引号、无目录前缀）——第二十轮补，专治
+        #    「文档让读者去跑一个包里没有的脚本」那种藏得最深的悬空引用。
+        #    ⚠️ 两个坑（第一版现场踩的）：
+        #      ① alternation 顺序：`js` 排在 `json` 前 → `.audit.json` 被切成 `audit.js`
+        #      ② 未排除前面紧跟的点号 → `<skill名>.audit.json` 里切出 `audit.json`
+        #    只认 .py/.js/.json（脚本类）；`.md` 裸写太常见（INDEX.md 等同名多个），不纳入。
+        r"|(?<![\w/`\-.])([A-Za-z_][A-Za-z0-9_\-]*\.(?:json|py|js))")
 
     inpack = set()
     for dp, dirs, fs in os.walk(root):
@@ -976,33 +1025,11 @@ def gate_doc_references(root):
         if not os.path.isfile(p):
             continue
         text = io.open(p, encoding="utf-8", errors="ignore").read()
-        for m in REF_RE.finditer(text):
-            ref = (m.group(1) or m.group(2) or "").strip()
-            if not ref or ref.endswith("/"):
-                continue
-            if ref.startswith(FILLER_PREFIX) or ref in FILLER_FILES:
-                continue
-            if PLACEHOLDER_RE.search(ref):
-                continue
-            checked += 1
-            cands = [ref,
-                     os.path.join(os.path.dirname(doc), ref).replace("\\", "/"),
-                     os.path.normpath(os.path.join(os.path.dirname(doc), ref)).replace("\\", "/")]
-            if any(c in inpack for c in cands):
-                continue
-            # ★ 后缀匹配（第二十轮·第一版判据太死）：
-            #   文档里大量用**相对简写**——`core-principles.md`（实在 `references/` 下）、
-            #   `analysis_to_html.py`（实在 `scripts/` 下）、`cards/INDEX.md`。
-            #   第一版只认「相对包根 / 相对本文档目录」，一口气报了 14 处**假阳性**。
-            #   → 改为：引用的路径是包内某文件路径的**后缀**即算存在。
-            #   ⚠️ 裸文件名（不含 `/`）太通用（`INDEX.md` 包里有 4 个），
-            #      只要求「包内存在同名文件」，不要求唯一——宁可漏报也不喊狼来了。
-            if "/" in ref:
-                if any(p.endswith("/" + ref) for p in inpack):
-                    continue
-            else:
-                if any(os.path.basename(p) == ref for p in inpack):
-                    continue
+        # ★ 判据只有一份（`_docref_scan_text`），主逻辑与自测夹具**共用**
+        miss, n = _docref_scan_text(text, doc, inpack, FILLER_PREFIX, FILLER_FILES,
+                                    PLACEHOLDER_RE, REF_RE)
+        checked += n
+        for ref in miss:
             missing.setdefault(ref, []).append(doc)
 
     for ref, docs in sorted(missing.items()):
@@ -1032,41 +1059,31 @@ def gate_doc_references(root):
     missing.update({r: [d] for r, d in tree_missing})
 
     # —— 自测夹具：这份夹具必须能报出来，否则门禁是空转的 ——
+    #    ★ 夹具**调同一个判据函数**（`_docref_scan_text`），不再自己复写一遍逻辑。
+    #      第二十轮之前两边各写一份 → 实现改了夹具也不知道，属于「夹具与实现不同源」。
     tmp = tempfile.mkdtemp(prefix="docref_")
     try:
         os.makedirs(os.path.join(tmp, "references"), exist_ok=True)
         os.makedirs(os.path.join(tmp, "scripts"), exist_ok=True)
-        io.open(os.path.join(tmp, "references", "core-principles.md"), "w",
-                encoding="utf-8").write("# 存在\n")
+        for f in (("references", "core-principles.md"), ("scripts", "real-script.py")):
+            io.open(os.path.join(tmp, *f), "w", encoding="utf-8").write("# exists\n")
         io.open(os.path.join(tmp, "SKILL.md"), "w", encoding="utf-8").write(
-            "# 假 skill\n\n先读 `references/core-principles.md`，再跑 `scripts/ghost-script.py`。\n"
-            "自填区引用不算：`references/theories/mine.md`、`references/cases/case-NNN.md`。\n")
-        fixture_ok = False
+            "# fake skill\n\n"
+            "先读 `references/core-principles.md`（存在→不报），再跑 `scripts/ghost-script.py`（幽灵→报）。\n"
+            "**裸写的脚本名也要查**：跑 skill_audit.py 核一遍（包里没有→报），"
+            "但 scripts/real-script.py 是有的（→不报）。\n"
+            "自填区与占位符不算：`references/theories/mine.md`、`references/cases/case-NNN.md`。\n")
         inpack2 = set()
         for dp, dirs, fs in os.walk(tmp):
             for f in fs:
                 inpack2.add(os.path.relpath(os.path.join(dp, f), tmp).replace("\\", "/"))
         text2 = io.open(os.path.join(tmp, "SKILL.md"), encoding="utf-8").read()
-        hits = []
-        for m in REF_RE.finditer(text2):
-            ref = (m.group(1) or m.group(2) or "").strip()
-            if not ref or ref.endswith("/"): continue
-            if ref.startswith(FILLER_PREFIX) or ref in FILLER_FILES: continue
-            if PLACEHOLDER_RE.search(ref): continue
-            cands = [ref, os.path.join(os.path.dirname("SKILL.md"), ref).replace("\\", "/")]
-            if any(c in inpack2 for c in cands):
-                continue
-            if "/" in ref:
-                if any(p.endswith("/" + ref) for p in inpack2):
-                    continue
-            else:
-                if any(os.path.basename(p) == ref for p in inpack2):
-                    continue
-            hits.append(ref)
-        # 夹具期望：只报 ghost-script.py（存在的那个、自填区那三个都不报）
-        fixture_ok = (hits == ["scripts/ghost-script.py"])
+        hits, _n = _docref_scan_text(text2, "SKILL.md", inpack2, FILLER_PREFIX, FILLER_FILES,
+                                     PLACEHOLDER_RE, REF_RE)
+        expect = ["scripts/ghost-script.py", "skill_audit.py"]
+        fixture_ok = (hits == expect)
         print(f"  {'✅' if fixture_ok else '❌'} 自测夹具："
-              f"{'只报出幽灵脚本、存在项与自填区都不误报' if fixture_ok else '期望只报 [scripts/ghost-script.py]，实际 ' + str(hits)}")
+              f"{'报出两种写法的幽灵引用（带前缀 + 裸写），其余不误报' if fixture_ok else '期望 ' + str(expect) + '，实际 ' + str(hits)}")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
