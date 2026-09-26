@@ -202,7 +202,7 @@ def gate_pipeline(root):
     print()
     print("【门禁 4】通用管线冒烟（analysis_to_html.py 能否挂出反模式层）")
     if not os.path.isfile(fp):
-        return _dep_or_fail("analysis_to_html.py")
+        return (True if _require("analysis_to_html.py") else False)
     spec = importlib.util.spec_from_file_location("a2h", fp)
     mod = importlib.util.module_from_spec(spec)
     try:
@@ -306,7 +306,7 @@ def gate_required_fields(root):
     print()
     print("【门禁 5】规范「必填」项在通用管线的承载力（缺口栏 / 复盘前缀 / 互斥对）")
     if not os.path.isfile(fp):
-        return _dep_or_fail("analysis_to_html.py")
+        return (True if _require("analysis_to_html.py") else False)
     spec = importlib.util.spec_from_file_location("a2h_rf", fp)
     mod = importlib.util.module_from_spec(spec)
     try:
@@ -442,7 +442,7 @@ def gate_numbering(root):
     print()
     print("【门禁 6】章节编号连贯（层出现时不跳号）")
     if not os.path.isfile(fp):
-        return _dep_or_fail("analysis_to_html.py")
+        return (True if _require("analysis_to_html.py") else False)
     spec = importlib.util.spec_from_file_location("a2h_num", fp)
     mod = importlib.util.module_from_spec(spec)
     try:
@@ -677,7 +677,7 @@ def gate_list_consistency(root):
     print()
     print("【门禁 9】文档里的取值清单必须与代码一致（同一文档两套口径 = 读者不知信哪个）")
     if not os.path.isfile(fp) or not os.path.isfile(ledger):
-        return _dep_or_fail("gap_ledger.py", "缺口台账.md", optional="gap_ledger.py")
+        return _optional_dep("gap_ledger.py", "缺口台账.md")
     spec = _ilu.spec_from_file_location("gl_lc", fp)
     mod = _ilu.module_from_spec(spec)
     try:
@@ -767,45 +767,49 @@ def gate_list_consistency(root):
     return ok
 
 
-def _dep_or_fail(*missing, optional=()):
-    """门禁的依赖文件不存在时：**区分「本包不该有」与「本包应该有但没有」**
+def _find(names):
+    """在一组候选位置里找文件，返回「找到的」与「没找到的」"""
+    found, missing = [], []
+    for n in names:
+        ok = any(os.path.isfile(os.path.join(d, n)) for d in (
+            HERE, os.path.dirname(HERE), os.path.join(os.path.dirname(HERE), "scripts")))
+        (found if ok else missing).append(n)
+    return found, missing
 
-    ★ 第十八轮自抓（同一个「静默跳过 → 回绿」的模式）：
-      本脚本原有 **4 处**依赖缺失时直接 `print("⚠️ 未找到…跳过")` + `return True` ——
-      而其中 `analysis_to_html.py` **是开源包本就随包发布的文件**。
-      也就是说：**它被删了/改名了，会有 3 道门禁（4/5/6）集体静默回绿**，
-      而报告上看起来一切正常。**与审核方报我的那个 `continue` 是同一个病。**
 
-    三态（沿用 `cross_round_check.py` 的约定）：
-      · 依赖是**必需的**（本包应该有）→ ❌ 判红（返回 False）
-      · 依赖是**本包本就不含的**（如本机专用工具）→ ⚠️ 如实报「未查」，
-        **返回 None（不计入绿）**——不假装通过，也不冤枉本包。
+def _require(*names):
+    """依赖是**每个包都该随包发布**的（如管线脚本）→ 缺失 = ❌ 判红
 
-    ★「本包应该有」怎么判：**看同族的本机专用工具在不在**。
-      本机专用工具（gap_ledger.py）在 → 这是**本地包** → 它的数据（缺口台账.md）**必须在**，
-      缺了就判红；两者都不在 → 这是**开源包** → 如实报未查。
-      （「工具在但数据丢了」正是最该抓的组合：说明有人搬走了东西。）
+    ★ 第十八轮自抓：本脚本原有 4 处「依赖缺失 → `return True`」——
+      而 `analysis_to_html.py` **是开源包本就随包发布的文件** →
+      它被删了，门禁 4/5/6 会集体静默回绿。**与审核方报我的那个 `continue` 同一个病。**
     """
-    hard = [n for n in missing if n not in optional]
-    for name in hard:
-        for cand in (os.path.join(HERE, name), os.path.join(os.path.dirname(HERE), "scripts", name),
-                     os.path.join(os.path.dirname(HERE), name)):
-            if os.path.isfile(cand):
-                return True          # 居然在 → 不该走到这
-    if hard:
-        print(f"  ❌ **必需依赖缺失**：{'、'.join(hard)}"
+    _found, missing = _find(names)
+    if missing:
+        print(f"  ❌ **必需依赖缺失**：{'、'.join(missing)}"
               f" → 本门禁无法执行，**判红**（不是跳过）")
-        print("      → 依赖不在＝这条门禁没查；没查 ≠ 通过。")
+        print("      → 依赖不在＝这条门禁没查；**没查 ≠ 通过**。")
         return False
-    # 全是 optional：看本机专用工具在不在，判断这是哪个包
-    local_tool = os.path.isfile(os.path.join(HERE, "gap_ledger.py")) or \
-        os.path.isfile(os.path.join(os.path.dirname(HERE), "scripts", "gap_ledger.py"))
-    if local_tool:
-        print(f"  ❌ **本地包缺本地数据**：{'、'.join(missing)}"
-              f"　（本机专用工具在，说明这是本地包 → 数据不该缺）")
-        return False
-    print(f"  ⚠️ 本包不含 {'、'.join(missing)}（均为本机专用工具/数据）→ **未查**，如实报，不计入绿")
-    return None
+    return True
+
+
+def _optional_dep(*names):
+    """依赖是**本地专用工具 + 它的数据**（公开包本就不含）→ 三态判定
+
+    · **全部缺失** → ⚠️ 如实报「未查」，返回 `None`（不计入绿，也不冤枉本包）
+    · **部分缺失** → ❌ 判红（这正是最该抓的组合：**工具在、它的数据却没了**）
+    · 全在 → 正常执行（返回 True，由调用方继续跑真正的检查）
+    """
+    found, missing = _find(names)
+    if not missing:
+        return True
+    if not found:
+        print(f"  ⚠️ 本包不含 {'、'.join(names)}（均为本机专用工具/数据）"
+              f" → **未查**，如实报，不计入绿")
+        return None
+    print(f"  ❌ **依赖不完整**：在 {'、'.join(found)}；"
+          f"缺 {'、'.join(missing)}　← 工具在说明这是本地包，它的数据不该缺")
+    return False
 
 
 def main():
@@ -844,13 +848,20 @@ def main():
               ("4 管线冒烟", ok4), ("5 必填项承载力", ok5), ("6 章节编号", ok6),
               ("7 共用词覆盖", ok7), ("8 卡库卫生", ok8), ("9 取值清单一致", ok9)]
     _unrun = [n for n, r in _gates if r is None]
-    allok = all(r is True for _n, r in _gates)
+    _fail = [n for n, r in _gates if r is False]
+    allok = not _fail                      # 未查**不判红**，但也**不算绿**
     if _unrun:
         print(f"  ℹ️ 未执行的门禁（依赖本包不含）：{'、'.join(_unrun)}"
-              f" —— **未查 ≠ 通过**，结论行只认「实跑的项全过」")
+              f" —— **未查 ≠ 通过**，如实报出，不并入绿")
     # 第十三轮 N5：夹具告警**汇总成一行**（不是 26 行原文）——证据文件里真失败要能一眼看见。
     print(fixture_warning_summary())
-    print("结论：", "🟢 全绿" if allok else "🔴 有门禁不过")
+    # 三态结论：🔴 有失败 / 🟡 实跑项全过但有未查项 / 🟢 实跑项全过且无未查
+    if _fail:
+        print(f"结论： 🔴 有门禁不过（{'、'.join(_fail)}）")
+    elif _unrun:
+        print(f"结论： 🟡 跑到的门禁全过；**{'、'.join(_unrun)} 未查**（本包不含其依赖）")
+    else:
+        print("结论： 🟢 全绿")
     return 0 if allok else 1
 
 
