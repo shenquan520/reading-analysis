@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>《书名》· 第 N 批（书内 XXX-XXX）</title>
+<!--
+  ⚠️ 批报告模板（只改内容，不许改样式/结构）
+  每个批次复制本文件到 dist/<别名>-batch-<NNN>.html，然后只替换：
+  1. <title>
+  2. header 里的：tag 文案、书名批号、PDF页码=书内页码、bar 宽度百分比（已读页数/714）、正文进度文案
+  3. .stat 三个数字（本批页数 / 新增核心原理 / 清单进度）
+  4. 金矿 table 的行（书内页 / 内容(带⭐) / 价值）—— ⚠️ 三段表：书内页|内容|价值，⭐ 标在内容里，价值单列
+  5. 原文摘录 .quote（.src 标书内页+PDF页码，关键句用 <em>）
+  6. ol.principles 的 li（本批新增核心原理）
+  7. .next 下一批 + .warn 精选提醒 + .skip 跳过说明
+  8. footer 的入库路径 + 生成时间
+  9. ⚠️ header 里的 .now 状态块（📍现在读到 / ▶️接下来读）必须填写，用户要求每批必报进度
+-->
+<style>
+  :root{
+    --bg:#0f1115; --card:#171a21; --card2:#1d212a; --line:#2a2f3a;
+    --txt:#e6e8ee; --dim:#9aa3b2; --acc:#6ea8fe; --gold:#f0b429; --ok:#4ade80;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Helvetica Neue",sans-serif;
+    line-height:1.7;padding:20px 16px 60px;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:820px;margin:0 auto}
+  header{border-bottom:1px solid var(--line);padding-bottom:18px;margin-bottom:24px}
+  .tag{display:inline-block;background:rgba(110,168,254,.14);color:var(--acc);
+    font-size:12px;padding:3px 10px;border-radius:20px;margin-bottom:10px;letter-spacing:.5px}
+  h1{font-size:24px;font-weight:600;letter-spacing:.5px}
+  .sub{color:var(--dim);font-size:14px;margin-top:8px}
+  .bar{margin-top:14px;background:var(--card2);border-radius:8px;height:8px;overflow:hidden}
+  .bar>i{display:block;height:100%;width:14.8%;background:linear-gradient(90deg,var(--acc),var(--ok));border-radius:8px}
+  .now{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+  .now div{flex:1;min-width:200px;background:var(--card);border:1px solid var(--line);
+    border-radius:10px;padding:10px 14px;font-size:13px}
+  .now b{color:var(--acc)}
+  h2{font-size:17px;margin:30px 0 14px;padding-left:11px;border-left:3px solid var(--acc);font-weight:600}
+  .stat{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+  .stat div{flex:1;min-width:96px;background:var(--card);border:1px solid var(--line);
+    border-radius:10px;padding:12px 14px}
+  .stat b{display:block;font-size:20px;color:var(--acc);font-weight:600}
+  .stat span{font-size:12px;color:var(--dim)}
+  table{width:100%;border-collapse:collapse;background:var(--card);
+    border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  th{background:var(--card2);font-size:13px;color:var(--dim);text-align:left;
+    padding:10px 12px;font-weight:500}
+  td{padding:12px;border-top:1px solid var(--line);font-size:14px;vertical-align:top}
+  td.pg{color:var(--gold);font-weight:600;white-space:nowrap;width:64px}
+  td.val{color:#cbd2dd}
+  .s3{color:var(--gold)}
+  ol.principles{counter-reset:p;list-style:none}
+  ol.principles li{position:relative;background:var(--card);border:1px solid var(--line);
+    border-radius:10px;padding:13px 14px 13px 44px;margin-bottom:9px;font-size:14px}
+  ol.principles li:before{counter-increment:p;content:counter(p);position:absolute;left:14px;top:13px;
+    width:20px;height:20px;line-height:20px;text-align:center;border-radius:6px;
+    background:rgba(110,168,254,.16);color:var(--acc);font-size:12px;font-weight:600}
+  ol.principles li b{color:#fff}
+  .quote{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--gold);
+    border-radius:8px;padding:12px 14px;margin-bottom:10px;font-size:14px}
+  .quote .src{display:block;color:var(--dim);font-size:12px;margin-bottom:6px}
+  .quote em{color:var(--gold);font-style:normal}
+  .next{background:linear-gradient(135deg,rgba(110,168,254,.10),rgba(74,222,128,.07));
+    border:1px solid rgba(110,168,254,.28);border-radius:12px;padding:16px 18px;font-size:14px}
+  .next b{color:var(--acc)}
+  .warn{margin-top:14px;background:rgba(240,180,41,.08);border:1px solid rgba(240,180,41,.3);
+    border-radius:10px;padding:12px 14px;font-size:13px;color:#e8d9a8}
+  .skip{margin-top:12px;background:rgba(110,168,254,.08);border:1px solid rgba(110,168,254,.3);
+    border-radius:10px;padding:12px 14px;font-size:13px;color:#b8d4ff}
+  footer{margin-top:32px;padding-top:16px;border-top:1px solid var(--line);
+    color:var(--dim);font-size:12px;text-align:center}
+  @media(max-width:560px){
+    body{padding:16px 12px 48px}
+    h1{font-size:20px}
+    table,thead,tbody,tr,td{display:block;width:100%}
+    thead{display:none}
+    tr{border-top:1px solid var(--line);padding:12px}
+    tr:first-child{border-top:none}
+    td{border:none;padding:3px 0}
+    td.pg,td.st{width:auto;display:inline-block;margin-right:10px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="tag">任务 4 · 精选模式</span>
+    <h1>《书名》· 第 N 批</h1>
+    <div class="sub">作者 · PDF pXXX–pXXX ＝ 书内 XXX–XXX 页 · 章节名</div>
+    <div class="bar"><i></i></div>
+    <div class="sub" style="margin-top:8px">正文进度 XX / 714 页 · ✅ 精选清单第 X 项（X/19 页）</div>
+    <div class="now">
+      <div><b>📍 现在读到</b>：书内 XXX-XXX（PDF pXXX-pXXX）<br>章节名</div>
+      <div><b>▶️ 接下来读</b>：书内 XXX-XXX（PDF pXXX-pXXX）<br>下一批内容预告</div>
+    </div>
+  </header>
+
+  <div class="stat">
+    <div><b>10</b><span>本批页数</span></div>
+    <div><b>N</b><span>新增核心原理</span></div>
+    <div><b>X 项</b><span>清单进行中</span></div>
+  </div>
+
+  <h2>这一批的金矿</h2>
+  <table>
+    <thead><tr><th>书内页</th><th>内容</th><th>价值</th></tr></thead>
+    <tbody>
+      <tr>
+        <td class="pg">XXX</td>
+        <td><span class="s3">⭐⭐⭐</span> <b>核心概念</b>：一句话要点。</td>
+        <td class="val">对英语阅读的具体用处。</td>
+      </tr>
+      <!-- 每页/每组概念一行，跨页用 XXX-YYY；⭐ 标在内容里，价值单列 -->
+    </tbody>
+  </table>
+
+  <h2>原文摘录</h2>
+  <div class="quote">
+    <span class="src">书内 XXX（PDF pXXX）</span>
+    「<em>关键原句</em>」
+  </div>
+
+  <h2>本批新增核心原理</h2>
+  <ol class="principles">
+    <li><b>原理名</b>：一句话。</li>
+  </ol>
+
+  <h2>下一批</h2>
+  <div class="next">
+    <b>PDF pXXX–pXXX（书内 XXX–XXX）</b><br>
+    下一批内容预告。
+    <div class="warn">⚠️ 本书为<b>精选模式</b>：714 页只圈读约 10 章，不通读。</div>
+    <div class="skip">ℹ️ 跳过非精选：XXX。页码映射：PDF p = 书内 + 18。</div>
+  </div>
+
+  <footer>
+    入库：<code>references/theories/fuju.md</code> · 进度：<code>references/reading-progress-fuju.md</code><br>
+    生成时间 YYYY-MM-DD HH:MM（螺丝）
+  </footer>
+
+</div>
+</body>
+</html>

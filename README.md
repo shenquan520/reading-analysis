@@ -2,7 +2,7 @@
 
 把英语阅读题交给 AI 分析的方法卡体系：高考 / 四六级 / 考研通用。
 
-**当前版本：v2.1.0**（2026-09-26 封版）· 更新历史见 [CHANGELOG.md](CHANGELOG.md) 与 [Releases](../../releases)
+**当前版本：v2.1.1**（2026-09-26）· 更新历史见 [CHANGELOG.md](CHANGELOG.md) 与 [Releases](../../releases)
 
 ## 一、解决什么问题
 
@@ -63,7 +63,7 @@
 ```
 SKILL.md 工作规则与工作流（AI 读这个）
 USER-GUIDE.md 使用说明书（人读这个）
-QUESTION-TYPE-MAP.md 题型 → 必查卡对照表
+references/QUESTION-TYPE-MAP.md 题型 → 必查卡对照表
 references/cards/ **127 张**方法卡（A/B/R 三系，各带 INDEX）
 references/*.md 原理内核 / 语篇关系 / 概括层 / 考试参数
 references/theories/ 理论拆解（空，使用者自己积累）

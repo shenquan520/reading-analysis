@@ -888,6 +888,193 @@ def _optional_dep(*names):
     return False
 
 
+def _parse_kb_tree(text):
+    """解析 SKILL.md「知识库结构」那种缩进树 → 完整路径列表（第二十轮补）
+
+    ★ 为什么非要有这个：第一版门禁只扫「反引号包裹」与「带目录前缀」两种写法，
+      而 SKILL.md 那张表是**缩进树**——藏掉 `references/templates/` 后门禁照样报 0 悬空。
+      **门禁空转了。** 而这张表恰恰就是让那个零记忆 Agent 踩空的东西：
+      它照表去找交付 JSON 契约模板，文件不在，只能去读渲染器源码反推字段名。
+
+    形状（实测）：
+        references/
+        ├─ core-principles.md      说明
+        ├─ theories/               说明
+        │  └─ INDEX.md             说明
+        CHANGELOG.md               说明        ← 顶格无符号 = 相对**包根**
+    规则：缩进宽度 // 3 = 层级；`├─ A/` 声明目录，其子项拼在它下面。
+    """
+    out, stack, root = [], {}, None
+    for ln in text.split("\n"):
+        if not ln.strip():
+            continue
+        # 根行：顶格、以 / 结尾、无树符号
+        if "├" not in ln and "└" not in ln and re.match(r"^\s*[A-Za-z0-9_\-./]+/\s*$", ln):
+            root = ln.strip().rstrip("/")
+            stack = {}
+            continue
+        m = re.match(r"^([\s│]*)[├└]─\s+([^\s]+)", ln)
+        if m and root:
+            depth = len(m.group(1)) // 3
+            name = m.group(2)
+            parent = "/".join(stack[d] for d in sorted(stack) if d < depth)
+            full = (root + "/" + parent + "/" + name) if parent else (root + "/" + name)
+            out.append(full.rstrip("/"))
+            if name.endswith("/"):
+                stack[depth] = name.rstrip("/")
+            for d in [d for d in stack if d > depth or (not name.endswith("/") and d >= depth)]:
+                del stack[d]
+            continue
+        # 顶格无符号 + 后面接说明文字 = 包根下的文件
+        m2 = re.match(r"^([A-Za-z0-9_\-./]+)\s{2,}\S", ln)
+        if m2 and root:
+            out.append(m2.group(1).rstrip("/"))
+    return out
+
+
+def gate_doc_references(root):
+    """【门禁 10】文档里的**指令性引用**必须真存在（第二十轮立，2026-09-26）
+
+    ★ 由来（GitHub 发布物验收·第二十轮）：
+      派一个零记忆 Agent 照 SKILL.md 干活，它照「知识库结构」那张表去拿交付 JSON 契约模板
+      —— `references/templates/` **根本不在包里**（从来不在任何同步清单里，靠手工搬）。
+      它只能去读 `analysis_to_html.py` 的源码反推字段名。
+      **文档说「去读 X」而 X 不存在，等于给读者挖坑**——这是功能缺失，不是排版问题。
+
+    三条假阳性防线（**喊狼来了比没有门禁更坏**）：
+      1. **使用者自填区白名单**：README 明说 `theories/` 与 `cases/` 刻意留空
+         （「用你自己的材料填充」）→ 引用它们**是合法的**，不报。
+      2. **命名占位符白名单**：`case-NNN.md` 这类是模板里的占位名，不报。
+      3. **只认两种写法**：反引号包裹的文件名、或带目录前缀的路径。
+         缩进树里的裸文件名（如 `├─ core-principles.md`）**不算**——那是排版，
+         且它相对的是父目录，逐行解析必然误报。
+    """
+    print("【门禁 10】文档里的指令性引用必须真存在（说「去读 X」而 X 不存在 = 给读者挖坑）")
+
+    # 自填区 / 占位符白名单
+    FILLER_PREFIX = ("references/theories/", "references/cases/", "theories/", "cases/")
+    FILLER_FILES = {"references/my-patterns.md", "my-patterns.md", "references/theories/INDEX.md",
+                    "references/cases/INDEX.md", "theories/INDEX.md", "cases/INDEX.md"}
+    PLACEHOLDER_RE = re.compile(r"(NNN|XXX|\*)")
+
+    REF_RE = re.compile(
+        r"`([A-Za-z0-9_\-./]+\.(?:md|py|js|json|html))`"          # 反引号包裹
+        r"|(?<![\w/`])((?:references|scripts)/[A-Za-z0-9_\-./]+)")  # 带目录前缀
+
+    inpack = set()
+    for dp, dirs, fs in os.walk(root):
+        dirs[:] = [d for d in dirs if d not in (".git", "__pycache__", ".audit_history")]
+        for f in fs:
+            inpack.add(os.path.relpath(os.path.join(dp, f), root).replace("\\", "/"))
+
+    DOCS = ["SKILL.md", "README.md", "USER-GUIDE.md"]
+    missing = {}
+    checked = 0
+    for doc in DOCS:
+        p = os.path.join(root, doc)
+        if not os.path.isfile(p):
+            continue
+        text = io.open(p, encoding="utf-8", errors="ignore").read()
+        for m in REF_RE.finditer(text):
+            ref = (m.group(1) or m.group(2) or "").strip()
+            if not ref or ref.endswith("/"):
+                continue
+            if ref.startswith(FILLER_PREFIX) or ref in FILLER_FILES:
+                continue
+            if PLACEHOLDER_RE.search(ref):
+                continue
+            checked += 1
+            cands = [ref,
+                     os.path.join(os.path.dirname(doc), ref).replace("\\", "/"),
+                     os.path.normpath(os.path.join(os.path.dirname(doc), ref)).replace("\\", "/")]
+            if any(c in inpack for c in cands):
+                continue
+            # ★ 后缀匹配（第二十轮·第一版判据太死）：
+            #   文档里大量用**相对简写**——`core-principles.md`（实在 `references/` 下）、
+            #   `analysis_to_html.py`（实在 `scripts/` 下）、`cards/INDEX.md`。
+            #   第一版只认「相对包根 / 相对本文档目录」，一口气报了 14 处**假阳性**。
+            #   → 改为：引用的路径是包内某文件路径的**后缀**即算存在。
+            #   ⚠️ 裸文件名（不含 `/`）太通用（`INDEX.md` 包里有 4 个），
+            #      只要求「包内存在同名文件」，不要求唯一——宁可漏报也不喊狼来了。
+            if "/" in ref:
+                if any(p.endswith("/" + ref) for p in inpack):
+                    continue
+            else:
+                if any(os.path.basename(p) == ref for p in inpack):
+                    continue
+            missing.setdefault(ref, []).append(doc)
+
+    for ref, docs in sorted(missing.items()):
+        print(f"      ❌ 引用了不存在的文件：`{ref}`（{docs[0]}）")
+    print(f"  在 {'/'.join(DOCS)} 里查了 {checked} 处引用，**悬空 {len(missing)} 处**")
+
+    # —— 缩进树（SKILL.md「知识库结构」那种地图）单独走一遍 ——
+    tree_missing = []
+    for doc in DOCS:
+        p = os.path.join(root, doc)
+        if not os.path.isfile(p):
+            continue
+        text = io.open(p, encoding="utf-8", errors="ignore").read()
+        for ref in _parse_kb_tree(text):
+            if ref.startswith(FILLER_PREFIX) or ref in FILLER_FILES:
+                continue
+            if PLACEHOLDER_RE.search(ref):
+                continue
+            if ref in inpack or os.path.isdir(os.path.join(root, ref)):
+                continue
+            if "/" in ref and any(q.endswith("/" + ref) for q in inpack):
+                continue
+            tree_missing.append((ref, doc))
+    for ref, doc in tree_missing:
+        print(f"      ❌ 文件地图里的路径不存在：`{ref}`（{doc}）")
+    print(f"  文件地图（缩进树）解析出 {len(_parse_kb_tree(io.open(os.path.join(root, DOCS[0]), encoding='utf-8').read())) if os.path.isfile(os.path.join(root, DOCS[0])) else 0} 条路径，**悬空 {len(tree_missing)} 条**")
+    missing.update({r: [d] for r, d in tree_missing})
+
+    # —— 自测夹具：这份夹具必须能报出来，否则门禁是空转的 ——
+    tmp = tempfile.mkdtemp(prefix="docref_")
+    try:
+        os.makedirs(os.path.join(tmp, "references"), exist_ok=True)
+        os.makedirs(os.path.join(tmp, "scripts"), exist_ok=True)
+        io.open(os.path.join(tmp, "references", "core-principles.md"), "w",
+                encoding="utf-8").write("# 存在\n")
+        io.open(os.path.join(tmp, "SKILL.md"), "w", encoding="utf-8").write(
+            "# 假 skill\n\n先读 `references/core-principles.md`，再跑 `scripts/ghost-script.py`。\n"
+            "自填区引用不算：`references/theories/mine.md`、`references/cases/case-NNN.md`。\n")
+        fixture_ok = False
+        inpack2 = set()
+        for dp, dirs, fs in os.walk(tmp):
+            for f in fs:
+                inpack2.add(os.path.relpath(os.path.join(dp, f), tmp).replace("\\", "/"))
+        text2 = io.open(os.path.join(tmp, "SKILL.md"), encoding="utf-8").read()
+        hits = []
+        for m in REF_RE.finditer(text2):
+            ref = (m.group(1) or m.group(2) or "").strip()
+            if not ref or ref.endswith("/"): continue
+            if ref.startswith(FILLER_PREFIX) or ref in FILLER_FILES: continue
+            if PLACEHOLDER_RE.search(ref): continue
+            cands = [ref, os.path.join(os.path.dirname("SKILL.md"), ref).replace("\\", "/")]
+            if any(c in inpack2 for c in cands):
+                continue
+            if "/" in ref:
+                if any(p.endswith("/" + ref) for p in inpack2):
+                    continue
+            else:
+                if any(os.path.basename(p) == ref for p in inpack2):
+                    continue
+            hits.append(ref)
+        # 夹具期望：只报 ghost-script.py（存在的那个、自填区那三个都不报）
+        fixture_ok = (hits == ["scripts/ghost-script.py"])
+        print(f"  {'✅' if fixture_ok else '❌'} 自测夹具："
+              f"{'只报出幽灵脚本、存在项与自填区都不误报' if fixture_ok else '期望只报 [scripts/ghost-script.py]，实际 ' + str(hits)}")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+    ok = (not missing) and fixture_ok
+    if not fixture_ok and not missing:
+        print("      ⚠️ 夹具没过 = 这道门禁查不出东西，绿了也不代表安全")
+    return ok
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--skill-root", default=os.path.dirname(HERE))
@@ -916,13 +1103,17 @@ def main():
     ok7 = gate_shared_words(root)
     ok8 = gate_card_hygiene(root)
     ok9 = gate_list_consistency(root)
+    print()
+    print("【门禁 10】文档引用完整性")
+    ok10 = gate_doc_references(root)
 
     print()
     print("=" * 78)
     # 三态：True 通过 / False 失败 / **None = 未查（不计入绿）**
     _gates = [("1 空行", ok1), ("2 匹配回归", ok2), ("3 字段齐整", ok3),
               ("4 管线冒烟", ok4), ("5 必填项承载力", ok5), ("6 章节编号", ok6),
-              ("7 共用词覆盖", ok7), ("8 卡库卫生", ok8), ("9 取值清单一致", ok9)]
+              ("7 共用词覆盖", ok7), ("8 卡库卫生", ok8), ("9 取值清单一致", ok9),
+              ("10 文档引用", ok10)]
     _unrun = [n for n, r in _gates if r is None]
     _fail = [n for n, r in _gates if r is False]
     allok = not _fail                      # 未查**不判红**，但也**不算绿**

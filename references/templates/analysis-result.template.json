@@ -1,0 +1,47 @@
+{
+  "schema_version": "1.0",
+  "title": "阅读分析 · 篇目名（如 2025.6 CET-4 Passage 1）",
+  "date": "2026-09-02",
+  "passage_source": "编者投喂训练材料 / 网络真题（注意版权规矩：投喂材料不写书名作者）",
+  "question_type": "仔细阅读 / 七选五 / 选词填空 / 长篇匹配 / 高考阅读",
+  "summary": {
+    "theme": "一句话主题",
+    "flow": "对象流动链：A → B → C（谁→怎么变→落到哪）",
+    "backbone": "主干/枝干：主旨 vs 细节",
+    "level_map": "信息层级：P1 层1 → P2 层2 → …（A003 对象定层级）",
+    "register": "语域/文体（说明文/议论文/叙事，正式度）",
+    "stuck_sentences": [
+      {"text": "卡壳原句（可选，用户标注的读不懂的句子）", "parse": "主干剥离 + 从句结构 + 译文"}
+    ]
+  },
+  "passage": {
+    "paragraphs": ["P1 原文", "P2 原文", "P3 原文"],
+    "functions": ["段旨/功能（如：现象引入+论点）", "例证（时间链）", "机制解释+限定"]
+  },
+  "questions": [
+    {
+      "q": "题干原文",
+      "answer": "A",
+      "why": "答案依据：定位到哪段哪句，怎么推出来的",
+      "cards": ["B042", "B052"],
+    "card_names": {"B042": "论证 = 理由支持结论", "B052": "推理题演绎边界"},
+    "card_uses": [{"id": "B052", "use": "本题中怎么用这张卡（必写，老师讲课式详细）"}],
+      "wrong_options": [
+        {"opt": "B", "reason": "错因：无中生有/偷换概念/程度越界/张冠李戴（写明哪一种+证据）"}
+      ],
+      "user_wrong_choice": "（可选）用户当时选的错项",
+      "user_thinking": "（可选）用户当时的思路"
+    }
+  ],
+  "review": {
+    "error_pattern": "错题归因（用户角度：哪一步想岔了）",
+    "takeaway": "可迁移原则（下次遇到同类题怎么办）",
+    "dual_channel": "双通道验证：局部通道结论 / 整体通道结论 / 是否同答（A032）"
+  },
+  "rating": null,
+  "meta": {
+    "analyst": "reading-analysis skill",
+    "cards_version": "B082/A032",
+    "note": "JSON 供网站导入（WEB-PLAN 云端存档）；HTML 由 scripts/analysis_to_html.py 从本文件生成"
+  }
+}
