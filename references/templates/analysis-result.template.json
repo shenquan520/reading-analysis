@@ -1,4 +1,48 @@
 {
+  "_渲染说明": {
+    "_用途": "本 JSON 由 scripts/analysis_to_html.py 渲染成页面。**每个字段的归宿在这里声明** —— 加新字段时必须同时在这里写明它渲染成什么（或为什么不必渲染），否则门禁 11 会报红。",
+    "_为什么要有这张表": "第二十轮外部工具冷启动实测：`user_wrong_choice` / `user_thinking` / `review.dual_channel` 三个字段模板里写了、渲染器却不读 → **填的人以为填对了，看的人根本看不到**。这张表让「填了却没人读」一眼可见，而不是等下一次冷启动才发现。",
+    "schema_version": "脚本读（版本校验），不渲染",
+    "title": "渲染（页面标题）",
+    "date": "渲染（页面抬头）",
+    "passage_source": "渲染（来源行；投喂材料只写「训练材料」，不写书名作者）",
+    "question_type": "渲染（题型行）",
+    "summary": "渲染（全文层分组；下含 6 项）",
+    "summary.*": "渲染（全文层：主题/流动链/主干/层级/语域 五项）",
+    "summary.stuck_sentences[].*": "渲染（长难句：text 原句 + parse 主干剥离与译文）",
+    "passage": "渲染（段落层分组）",
+    "passage.paragraphs": "渲染（段落层 5 件套之一：原文）",
+    "passage.functions": "渲染（段落层 5 件套之一：段旨）",
+    "questions": "渲染（逐题分析分组）",
+    "questions[].q": "渲染（题干）",
+    "questions[].answer": "渲染（答案徽章）",
+    "questions[].why": "渲染（💡 依据，支持换行）",
+    "questions[].cards": "渲染（📌 依据卡，点开可看卡全文）",
+    "questions[].card_names": "**不渲染**（分组；下含「卡号→卡名」映射）",
+    "questions[].card_names.*": "**不渲染**——渲染器直接读卡文件取真标题，比这里手写的更准（此处仅为网站端导入时的显示名）",
+    "questions[].card_uses": "渲染（分组；每张卡一条）",
+    "questions[].card_uses[].*": "渲染（卡详情里的「🎯 本题运用」与「📖 知识原理」两个页签）",
+    "questions[].wrong_options": "渲染（分组；每个干扰项一条）",
+    "questions[].wrong_options[].*": "渲染（✗ 干扰项逐项归因：选项字母 + 死因）",
+    "questions[].user_wrong_choice": "渲染（🗣 你当时选的是 X）——第二十轮补实现",
+    "questions[].user_thinking": "渲染（🗣 你的思路：…，支持换行）——第二十轮补实现",
+    "questions[].gap": "渲染（▮缺口栏，逐题必填，无则写「无」）",
+    "questions[].transfer": "渲染（🎯 可迁移原则，逐题必填）",
+    "questions[].options": "渲染（分组；键为选项字母）",
+    "questions[].options.*": "渲染（选项原文，提示级）",
+    "questions[].anti_patterns": "渲染（⚠️ 题内反模式提示行）",
+    "review": "渲染（复盘分组）",
+    "review.error_pattern": "渲染（复盘·归因，前缀随 review.kind 变）",
+    "review.takeaway": "渲染（复盘·可迁移原则）",
+    "review.dual_channel": "渲染（🔀 双通道验证）——第二十轮补实现",
+    "rating": "**不渲染**——本次评分由使用者在对话里给（页面末尾自带 5 星提示条），此字段供网站端存档",
+    "meta": "**不渲染**（分组）",
+    "meta.*": "**不渲染**（分析者署名 / 卡库版本 / 备注，供网站端与追溯）",
+    "user_note": "**不渲染**——它是**输入信号**（给反模式匹配用），不是输出内容",
+    "anti_patterns": "渲染（反模式层条幅，条件触发：不命中不出现）",
+    "ap_trigger": "**不渲染**——声明触发源，决定条幅文案用词"
+  },
+
   "schema_version": "1.0",
   "title": "阅读分析 · 篇目名（如 2025.6 CET-4 Passage 1）",
   "date": "2026-09-02",
@@ -18,6 +62,9 @@
     "paragraphs": ["P1 原文", "P2 原文", "P3 原文"],
     "functions": ["段旨/功能（如：现象引入+论点）", "例证（时间链）", "机制解释+限定"]
   },
+  "user_note": "（可选）使用者自述/错因原文 —— 它是**输入信号**（给反模式匹配用），不显示在页面上",
+  "anti_patterns": ["（可选）顶层显式指定命中的反模式编号，如 AP-12；三类匹配兜不住时由 agent 判"],
+  "ap_trigger": "（可选）声明触发源（自述／错选项构造／错因／主动点名），决定反模式条幅的文案用词",
   "questions": [
     {
       "q": "题干原文",
@@ -29,8 +76,12 @@
       "wrong_options": [
         {"opt": "B", "reason": "错因：无中生有/偷换概念/程度越界/张冠李戴（写明哪一种+证据）"}
       ],
-      "user_wrong_choice": "（可选）用户当时选的错项",
-      "user_thinking": "（可选）用户当时的思路"
+      "options": {"A": "（提示级可选）选项原文", "B": "…", "C": "…", "D": "…"},
+      "gap": "**（逐题必填）** 缺口：用到了但卡里没有的判断；**没有就写「无」**——规范称它是「最值钱的产出」",
+      "transfer": "**（逐题必填）** 可迁移原则：这道题的解法能迁到哪类题",
+      "anti_patterns": ["（可选）本题命中的反模式编号，如 AP-02；由 agent 判定后显式指定"],
+      "user_wrong_choice": "（可选）使用者当时选的错项 —— 会渲染成「你当时选的是 X」",
+      "user_thinking": "（可选）使用者当时的思路 —— 会渲染成「你的思路：…」，可分段"
     }
   ],
   "review": {

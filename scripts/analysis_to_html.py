@@ -21,9 +21,22 @@
     只能回去翻卷子。教具的价值在「学生能自己重走一遍判断」。
   · 没给不报错，但会往 stderr 打 `[tip]`（**提示级，暂非必填**——待产品口径确认后升为必填）
 
+使用者自述（**第二十轮补：模板早就有、渲染器此前不读**）：
+  questions[].user_wrong_choice  使用者当时选的错项 → 渲染成「你当时选的是 X」
+  questions[].user_thinking      使用者当时的思路 → 渲染成「你的思路：…」（支持换行）
+  · 中文键同样接受：`用户错选` / `用户思路`
+  · 为什么必须有：这是**错题归因最核心的信息**。SKILL.md 自己写着「喂错题时给三样最有效：
+    ①原文 ②哪题错+正确答案 ③**你当时为什么选错**」——第三样此前只进 JSON，不进页面。
+  · 二者任一存在即渲染；都没有则整块不出现（不占位）
+
 复盘前缀（随场景变化，**不要写死**）：
   review.kind = "错题" → 「错题归因：」 ／ "要点" → 「本题要点：」
   未声明 → **中性「归因：」**（脚本不替使用者假定「本次有错题」）
+
+双通道验证（**第二十轮补：模板声明了、此前渲染器不读**）：
+  review.dual_channel   A032 双通道：局部通道结论 / 整体通道结论 / 是否同答
+  · 为什么必须有：这是本 skill 被反复称为「主力卡」的核心方法论，
+    **只进 JSON 不进页面 = 方法论没交付**。与 questions[].user_thinking 同批发现。
   ⚠️ 与反模式条幅同一套做法：**硬编码前缀 + 场景会变 = 断言使用者没做过的事**。
 """
 import json, pathlib, sys, html as H, re
@@ -53,10 +66,12 @@ th{background:#f0f4ff;font-weight:600}
 .q .qn{font-weight:700;color:#185FA5}
 .q .ans{display:inline-block;background:#4f8cff;color:#fff;padding:2px 10px;border-radius:12px;font-size:13px;font-weight:700;margin:4px 0}
 .q .why{background:#f6f8fa;border-radius:6px;padding:8px 12px;font-size:13px;margin:8px 0}
+.q .mine{background:#fff7ed;border-left:3px solid #f59e0b;border-radius:6px;padding:8px 12px;font-size:13px;margin:8px 0;color:#7c2d12}
 .q .cards{font-size:12px;color:#57606a}
 .wrong{font-size:12.5px;color:#a11;margin:2px 0}
 .wrong b{color:#a11}
 .take{background:#f0f4ff;border-radius:8px;padding:10px 14px;font-size:13px;margin:6px 0}
+.dual{background:#eefbf3;border-radius:8px;padding:10px 14px;font-size:13px;margin:6px 0;color:#14532d}
 .gap{background:#1a1a1a;color:#e5e7eb;border-radius:8px;padding:8px 14px;margin-top:8px;font-size:14px}
 .note{background:#f0f4ff;border-radius:8px;padding:8px 14px;margin-top:6px;font-size:13px}
 .opts{background:#fafbfc;border:1px solid #e3e8ee;border-radius:8px;padding:8px 10px;margin:8px 0;font-size:14px}
@@ -334,7 +349,29 @@ def build(data: dict) -> str:
             else:
                 missing_opts.append(i + 1)
             out.append(f'<span class="ans">答案：{esc(q.get("answer",""))}</span>')
-            out.append(f'<div class="why">💡 {esc(q.get("why",""))}</div>')
+            # why 支持换行（第二十轮统一）：同一渲染器里 takeaway 早已 `.replace('\n','<br>')`，
+            # 而 why 没有 → 分段写的 why 在页面上被折叠成一整段。
+            # 「同类字段的同类处理要一致」——不一致会让写的人白费格式，读的人看不出层次。
+            out.append(f'<div class="why">💡 {esc(q.get("why","")).replace(chr(10), "<br>")}</div>')
+            # 使用者自述（第二十轮补：**模板声明了、渲染器却不读**）
+            #
+            # ★ 由来：ZCode（外部工具）冷启动验收时主动报的一处落差 ——
+            #   `references/templates/analysis-result.template.json` 里写着
+            #   `user_wrong_choice` / `user_thinking`，但渲染器一次都不读、SKILL.md 契约表也没列。
+            #   后果很具体：**用户自己「当时为什么选错」的原话，在交付页面上看不到** ——
+            #   而那正是错题归因最核心的信息（SKILL.md 自己写着「喂错题时给三样最有效：
+            #   ①原文 ②哪题错+正确答案 ③你当时为什么选错」）。
+            #   填了字段却没人读 = 读者以为填错了。**模板比契约多列字段，比契约少列字段一样坏。**
+            # （对照第八轮的镜像：契约多列字段而渲染器不读 → 静默丢段旨。）
+            uwc = str(q.get("user_wrong_choice") or q.get("用户错选") or "").strip()
+            uth = str(q.get("user_thinking") or q.get("用户思路") or "").strip()
+            if uwc or uth:
+                parts = []
+                if uwc:
+                    parts.append(f'你当时选的是 <b>{esc(uwc)}</b>')
+                if uth:
+                    parts.append(f'你的思路：{esc(uth).replace(chr(10), "<br>")}')
+                out.append('<div class="mine">🗣 ' + '　'.join(parts) + '</div>')
             cards = [c.get("id","") if isinstance(c, dict) else c for c in q.get("cards", [])]
             uses = {u.get("id",""): u.get("use","") for u in q.get("card_uses", []) if isinstance(u, dict)}
             if cards:
@@ -409,6 +446,18 @@ def build(data: dict) -> str:
             out.append(f'<p><b>{label}</b>{esc(r["error_pattern"])}</p>')
         if r.get("takeaway"):
             out.append('<div class="take">🎯 <b>可迁移原则：</b><br>' + esc(r["takeaway"]).replace('\n', '<br>') + '</div>')
+        # 双通道验证（第二十轮补：**模板声明了、渲染器也不读** —— 与 user_thinking 同批发现）
+        #
+        # ★ 由来：ZCode（外部工具）冷启动验收时报的「落差」指向自述字段，
+        #   顺着模板逐字段核下去，发现 `review.dual_channel` **同样是只进 JSON、不进页面**。
+        #   而它是 A032（双通道验证）—— 这个 skill 被反复称为「考研主力卡」的核心方法论：
+        #   局部通道结论 / 整体通道结论 / 是否同答。**方法论的落点不显示，等于没交付。**
+        # 判据：模板里的字段分三类 —— 给读者看的（必须渲染）／给脚本用的（不必渲染，但要在
+        #   模板的 `_渲染说明` 里写明归宿）／给别的脚本用的。**「填了却没人读」必须能一眼看出来。**
+        dc = str(r.get("dual_channel") or "").strip()
+        if dc:
+            out.append('<div class="dual">🔀 <b>双通道验证：</b><br>'
+                       + esc(dc).replace(chr(10), '<br>') + '</div>')
     # 追问提示条（每次交付必带）
     out.append('<div style="margin-top:28px;background:#f0f4ff;border:1px solid #d0e2ff;border-radius:10px;padding:12px 16px;font-size:13px;color:#1f2328">💬 <b>看不懂的尽管问。</b>以上任何术语、原理、判断依据，都可以拿去追问 AI——比如"这段怎么概括出来的""这个干扰项怎么构造的"。不懂就问，问到底都行。</div>')
     # 评分提示（2026-09-02：每次交付必带，放最后）

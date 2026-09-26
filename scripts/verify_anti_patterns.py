@@ -28,6 +28,7 @@ import argparse
 import glob
 import importlib.util
 import io
+import json
 import os
 import re
 import shutil
@@ -1075,6 +1076,136 @@ def gate_doc_references(root):
     return ok
 
 
+def _check_template_contract(root):
+    """纯检查：模板每个非 `_` 字段是否都有归宿声明。
+
+    **职责单一**：只读模板、算差异、返回结果（不打印、不建夹具、不递归）。
+    打印与夹具在 `gate_template_render_contract` 里做。
+
+    ⚠️ 踩过两次递归（同一处，值得记）：
+      第一次：夹具写在门禁函数里、夹具又调门禁函数 → 无限递归（输出刷几百屏）。
+      第二次：把门禁函数改名成 `_check` 后，**忘了把夹具段搬出去** → 夹具仍调 `_check` 自身 → 又递归。
+      教训：**函数改名只是改名；「谁调谁」的关系要重新想一遍。**
+      防范：夹具必须调「被检查的那段逻辑」，而那段逻辑里**不能含夹具**。
+
+    返回：undeclared / stale 两个列表；模板不存在时返回 None（= 未查）。
+    """
+    import json as _json
+
+    tpl = os.path.join(root, "references", "templates", "analysis-result.template.json")
+    if not os.path.isfile(tpl):
+        return None
+
+    try:
+        data = _json.loads(io.open(tpl, encoding="utf-8").read())
+    except Exception:
+        return False, "模板不是合法 JSON"
+
+    if "_渲染说明" not in data:
+        return False, "模板缺 `_渲染说明` 表——每个字段的归宿必须显式声明"
+
+    spec = data["_渲染说明"]
+    spec_keys = set(spec.keys())
+
+    # 说明表的键可以是**精确路径**或**带 * 的通配**（`summary.*` / `questions[].card_names.*`）
+    import re as _re
+    spec_pats = []
+    for k in spec_keys:
+        if k.startswith("_"):
+            continue
+        rx = "^" + _re.escape(k).replace(r"\*", "[^.]+") + "$"
+        spec_pats.append(_re.compile(rx))
+
+    def covered(path):
+        """⚠️ **父路径的声明不自动覆盖子路径** —— 否则 `questions` 一声明，
+        `questions[].q` 全算覆盖，这道门禁就废了。
+        需要整块声明的（键是动态的，如卡号→卡名）在说明表里写通配。"""
+        return any(rx.match(path) for rx in spec_pats)
+
+    def walk(o, path=""):
+        out = []
+        if isinstance(o, dict):
+            for k, v in o.items():
+                if k.startswith("_"):
+                    continue
+                p = f"{path}.{k}" if path else k
+                out.append(p)
+                if isinstance(v, dict):
+                    out += walk(v, p)
+                elif isinstance(v, list) and v and isinstance(v[0], dict):
+                    out += walk(v[0], p + "[]")
+        return out
+
+    fields = walk(data)
+    undeclared = [f for f in fields if not covered(f)]
+    stale = [k for k in spec_keys
+             if not k.startswith("_") and "*" not in k and k not in fields]
+    return undeclared, stale
+
+
+def gate_template_render_contract(root):
+    """【门禁 11】交付模板的每个字段都要有「归宿声明」（第二十轮立，2026-09-26）
+
+    ★ 由来（外部工具 ZCode 冷启动验收·第二十轮）：
+      它填了 `questions[].user_wrong_choice` / `user_thinking`，然后如实报告
+      「模板里有这两个字段，但渲染器不读」→ **使用者自己「当时为什么选错」的原话
+      在交付页面上看不到**。顺着模板逐字段核下去，又发现 `review.dual_channel`
+      （A032 双通道，本 skill 的核心方法论）同样是**只进 JSON、不进页面**。
+      再往下还核出：**模板漏了 `gap`/`transfer` 这两个「逐题必填」字段** ——
+      照模板填必然缺，渲染器会告警。
+
+    为什么不做「模板键 ⊆ 渲染器读到的键」这种机器判定：
+      实测模板里**本来就有一批字段渲染器不读且属有意为之**（`card_names` 用卡文件真标题替代、
+      `meta.*`/`schema_version` 是元信息、`user_note` 是输入信号不是输出内容）——
+      那个判据会**一口气报十几个假阳性**。按本项目既有纪律：
+      **喊狼来了比没有门禁更坏。**
+
+    → 改成**声明式**：模板里 `_渲染说明` 必须覆盖每一个非 `_` 字段，
+      逐条写明「渲染成什么」或「为什么不渲染」。**零假阳性，且加字段必须当场想清归宿。**
+      本门禁只查「有没有声明」，不判断声明得对不对（那要人看）——
+      它挡的是「填了却没人读、而没人发现」这一类。
+    """
+    print("【门禁 11】交付模板字段的归宿声明（填了却没人读 = 读者以为填错了）")
+
+    res = _check_template_contract(root)
+    if res is None:
+        print("  ⚠️ 找不到 references/templates/analysis-result.template.json → **未查**，如实报，不计入绿")
+        return None
+    if isinstance(res, tuple) and res and res[0] is False:
+        print(f"  ❌ {res[1]}")
+        undeclared, stale = [], []
+        ok = False
+        res = ([], [])
+    else:
+        undeclared, stale = res
+        for f in undeclared:
+            print(f"      ❌ 未声明归宿：`{f}` —— 加字段时要在 `_渲染说明` 里写明它渲染成什么/为什么不渲染")
+        for k in stale:
+            print(f"      ⚠️ 说明表里有 `{k}`，但模板里找不到对应字段（说明表过期了）")
+        print(f"  → 未声明 {len(undeclared)} 个、过期 {len(stale)} 条")
+        ok = not undeclared
+
+    # —— 自测夹具：新加一个未声明字段，必须报出来 ——
+    tmp = tempfile.mkdtemp(prefix="tplcontract_")
+    fixture_ok = False
+    try:
+        os.makedirs(os.path.join(tmp, "references", "templates"), exist_ok=True)
+        fake = {"_渲染说明": {"title": "渲染"}, "title": "x", "brand_new_field": "y"}
+        io.open(os.path.join(tmp, "references", "templates", "analysis-result.template.json"),
+                "w", encoding="utf-8").write(json.dumps(fake, ensure_ascii=False))
+        sub = _check_template_contract(tmp)          # ★ 调纯检查，不调门禁本身
+        fixture_ok = (isinstance(sub, tuple) and sub[0] == ["brand_new_field"])
+        print(f"  {'✅' if fixture_ok else '❌'} 自测夹具："
+              f"{'新加未声明字段能被检出' if fixture_ok else f'期望 [brand_new_field]，实际 {sub}'}")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+    ok = ok and fixture_ok
+    if not fixture_ok and not undeclared:
+        print("      ⚠️ 夹具没过 = 这道门禁查不出东西，绿了也不代表安全")
+    return ok
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--skill-root", default=os.path.dirname(HERE))
@@ -1106,6 +1237,9 @@ def main():
     print()
     print("【门禁 10】文档引用完整性")
     ok10 = gate_doc_references(root)
+    print()
+    print("【门禁 11】交付模板字段归宿声明")
+    ok11 = gate_template_render_contract(root)
 
     print()
     print("=" * 78)
@@ -1113,7 +1247,7 @@ def main():
     _gates = [("1 空行", ok1), ("2 匹配回归", ok2), ("3 字段齐整", ok3),
               ("4 管线冒烟", ok4), ("5 必填项承载力", ok5), ("6 章节编号", ok6),
               ("7 共用词覆盖", ok7), ("8 卡库卫生", ok8), ("9 取值清单一致", ok9),
-              ("10 文档引用", ok10)]
+              ("10 文档引用", ok10), ("11 模板归宿声明", ok11)]
     _unrun = [n for n, r in _gates if r is None]
     _fail = [n for n, r in _gates if r is False]
     allok = not _fail                      # 未查**不判红**，但也**不算绿**
