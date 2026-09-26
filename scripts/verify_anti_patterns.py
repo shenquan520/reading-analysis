@@ -17,6 +17,7 @@
   6) 章节编号连贯：反模式层出现/不出现两种情形下，页面编号都不得跳号（第十二轮 L4 实测）
   7) 共用词覆盖：关键词有交集的卡对必须有归属决定（切分/互斥/并存），不许留白（第十二轮 P2）
   8) 卡库卫生：重复块 / 标题编号跳号 / 标题粘连（第十二轮，评审 L4 交付件时顺手抓到）
+  9) 文档取值清单与代码一致：同一文档里两处清单不许各说各话（第十六轮 S2）
 
 用法：
     python verify_anti_patterns.py [--skill-root <skill 根>] [--analysis-dir <HTML 目录>]
@@ -655,6 +656,121 @@ def gate_card_hygiene(root):
     return ok
 
 
+def gate_list_consistency(root):
+    """门禁 9：同一份文档里的「状态/取值清单」必须与代码一致（第十六轮 S2 立）
+
+    案件（审核方报）：`references/缺口台账.md` 的 §一 列了 **6 个**取值（含 `待核`）、
+    代码 `VALID_STATUS` 也是 **6 个**，而 **§二「状态取值」表格只有 5 行** —— 漏了 `待核`。
+
+    **为什么之前没被抓到**：审计工具 **G40** 管的是「**表格行的字段 vs 同一行的备注**」，
+    **不查「文档里两个清单是否一致」**——那是另一个射程。本项目此前也没有这道门禁。
+
+    判据（确定性、不猜）：
+      · 从 `gap_ledger.VALID_STATUS` 取权威清单（代码是唯一事实源）
+      · 在台账文档里找「回引号包裹的状态词」出现处，按**段落/表格块**分组
+      · 每一组若**自称是取值清单**（组内 ≥2 个合法状态词），则必须与权威清单**完全一致**
+        —— 缺一个 / 多一个都报
+
+    ★ 附自测夹具：造一份缺 `待核` 的假文档 → 必须报出来；造一份完整的 → 不许报。
+      没有夹具 = 可能因为「文档恰好都对」而恒绿（本项目已被这条教训咬过三次）。
+    """
+    import importlib.util as _ilu
+    fp = os.path.join(root, "scripts", "gap_ledger.py")
+    ledger = os.path.join(root, "references", "缺口台账.md")
+    print()
+    print("【门禁 9】文档里的取值清单必须与代码一致（同一文档两套口径 = 读者不知信哪个）")
+    if not os.path.isfile(fp) or not os.path.isfile(ledger):
+        print("  ⚠️ 缺 gap_ledger.py 或 缺口台账.md，跳过")
+        return True
+    spec = _ilu.spec_from_file_location("gl_lc", fp)
+    mod = _ilu.module_from_spec(spec)
+    try:
+        spec.loader.exec_module(mod)
+    except SystemExit:
+        pass
+    valid = list(getattr(mod, "VALID_STATUS", []))
+
+    def _scan(text):
+        """返回 [(位置, 实得集合, 缺, 多)]
+
+        两种真·清单形态（**散文里提到状态词不算**）：
+          ① **表格块里某一列**：连续 `|` 行的同一列，多行取值都是合法状态词
+          ② **单行列全**：一行内回引号块用 `/`、`、` 分隔并列列出，且该行几乎没有表意汉字
+
+        ⚠️ 初版判据写成「相邻行里出现 ≥2 个状态词就算清单」→ **在真文档上 2 报 2 假**：
+            · 「要么回退 `待立卡`，要么挂 `待核` 进人工队列」——一句话里提了两个状态
+            · 「`暂不新建` 与 `驳回` **都必须有理由**」——同上
+            **散文提到状态词，与「列一张清单」是两回事。**
+           （又一次「判据过粗 → 假阳性」，与门禁 8 初版同一个病。）
+        """
+        lines = text.split("\n")
+        bad = []
+        ok_full = set(valid)
+
+        # ① 表格块：连续 `|` 行 → 逐列取「整格就是一个合法状态词」的行
+        i = 0
+        while i < len(lines):
+            if lines[i].lstrip().startswith("|"):
+                j = i
+                while j < len(lines) and lines[j].lstrip().startswith("|"):
+                    j += 1
+                cols = {}
+                for ln in lines[i:j]:
+                    for k, c in enumerate(x.strip() for x in ln.strip().strip("|").split("|")):
+                        m = re.fullmatch(r"`([^`\n]+)`", c)
+                        if m and m.group(1) in valid:
+                            cols.setdefault(k, set()).add(m.group(1))
+                for k, s in cols.items():
+                    if len(s) >= 2 and s != ok_full:
+                        bad.append((i + 1, s, sorted(ok_full - s), sorted(s - ok_full)))
+                i = j
+            else:
+                i += 1
+
+        # ② 单行列全：该行去掉回引号块后几乎无表意汉字（≤2 个），且并列列出 ≥3 个状态词
+        for idx, ln in enumerate(lines, 1):
+            toks = []
+            for m in re.finditer(r"`([^`\n]+)`", ln):
+                for part in re.split(r"\s*[/、,，|]\s*", m.group(1)):
+                    if part in valid:
+                        toks.append(part)
+            if len(toks) < 3:
+                continue
+            residue = re.sub(r"`[^`\n]*`", "", ln)
+            if len(re.findall(r"[\u4e00-\u9fff]", residue)) > 2:
+                continue          # 这是散文，不是清单
+            s = set(toks)
+            if s != ok_full:
+                bad.append((idx, s, sorted(ok_full - s), sorted(s - ok_full)))
+        return bad
+
+    # —— 自测夹具 ——
+    fx_bad = "".join("| `%s` | x |\n" % s for s in valid if s != "待核")   # 表格缺 待核
+    fx_ok = "".join("| `%s` | x |\n" % s for s in valid)                  # 表格列全
+    fx_line_ok = f"取值：`{' / '.join(valid)}`。\n"                        # 单行列全
+    fx_prose = ("要么回退 `待立卡`，要么挂 `待核` 进人工队列。\n"           # 散文提及 → 不许报
+                "`暂不新建` 与 `驳回` 都必须有理由——否则它们就是捷径。\n")
+    fx_line_bad = f"取值：`{' / '.join([s for s in valid if s != '待核'])}`。\n"
+    fixture_ok = (len(_scan(fx_bad)) == 1 and len(_scan(fx_ok)) == 0
+                  and len(_scan(fx_line_ok)) == 0 and len(_scan(fx_prose)) == 0
+                  and len(_scan(fx_line_bad)) == 1)
+    print(f"  {'✅' if fixture_ok else '❌'} 自测夹具（表格缺词报 / 表格全不报 / 单行列全不报"
+          f" / **散文提及不报** / 单行缺词报）")
+    if not fixture_ok:
+        print("      ⚠️ 夹具没过 = 这道门禁查不出东西，绿了也不代表安全")
+        return False
+
+    bad = _scan(io.open(ledger, encoding="utf-8").read())
+    ok = not bad
+    if ok:
+        print(f"  ✅ 台账里出现的「取值清单」共 {len(valid)} 项，与代码 VALID_STATUS 完全一致")
+    else:
+        for line, s, missing, extra in bad[:5]:
+            print(f"  ❌ 台账 L{line} 的取值清单与代码不一致"
+                  f"（缺 {missing or '—'}／多 {extra or '—'}）")
+    return ok
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--skill-root", default=os.path.dirname(HERE))
@@ -682,10 +798,12 @@ def main():
     print("【门禁 7】共用词覆盖检查（关键词交集必须有归属决定，不许留白）")
     ok7 = gate_shared_words(root)
     ok8 = gate_card_hygiene(root)
+    ok9 = gate_list_consistency(root)
 
     print()
     print("=" * 78)
-    allok = ok1 and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and (ok8 is not False)
+    allok = (ok1 and ok2 and ok3 and ok4 and ok5 and ok6 and ok7
+             and (ok8 is not False) and ok9)
     # 第十三轮 N5：夹具告警**汇总成一行**（不是 26 行原文）——证据文件里真失败要能一眼看见。
     print(fixture_warning_summary())
     print("结论：", "🟢 全绿" if allok else "🔴 有门禁不过")
