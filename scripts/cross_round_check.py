@@ -222,11 +222,15 @@ def build_checks(root, export):
             return False, f"❌ 台账 {len(rows)} 行 / 声明缺口的 case {n_case} 个：{problems[:2]}"
         # 第十四轮 N1：队列有时限——逾期的**不判红**，但要在消息里冒出来（不然它无限期挂绿）
         overdue = stats.get("overdue") or []
+        shallow = stats.get("shallow") or []
         tail = f"待核 {stats['pending']} 行（人工队列）"
         if overdue:
             who = "、".join("%s(%d天)" % (g, d) for g, d in overdue[:4])
             tail = ("⚠️ 待核 %d 行中 **%d 行已超 %d 天**：%s —— 队列已逾期，请处理"
                     % (stats["pending"], len(overdue), stats.get("pending_days", 7), who))
+        elif shallow:
+            # R1：落地偏浅**不判红**，但要在结论行冒出来（不然它跟真落地行长得一样）
+            tail += f"；⚠️ 另有 **{len(shallow)} 行落地偏浅**（凭证有效但诉求未写全：{'、'.join(shallow[:4])}）"
         return True, (f"台账 {len(rows)} 行，覆盖 {n_case} 个 case；"
                       f"已落地 {stats['landed']} 行**每条都有可定位凭证**（锚点逐字命中）；"
                       f"{tail}；自测夹具 {fx_s} ✅")
