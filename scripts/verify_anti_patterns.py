@@ -1223,6 +1223,172 @@ def gate_template_render_contract(root):
     return ok
 
 
+def _check_py_env(root):
+    """纯检查（不打印、不建夹具）：交付脚本 ①能不能被解析 ②import 是否只用标准库。
+
+    ★ 射程是怎么定的（**这一条是本门禁最要紧的设计**）：
+
+    直觉做法是「扫包内所有 `.py`」，实测**当场报红 5 种第三方依赖** —— 但全是
+    `dist/_friend_pkg/scripts/` 里的 PDF/OCR 脚本（09-10 的历史快照），以及本地
+    `scripts/` 下 6 个**读书工具**（`extract_text.py` / `ocr_pages.py` / `pdf_extract.py` /
+    `pdf_page.py` / `probe_pdf.py` / `render_cards.py`，用 pymupdf / pypdf / rapidocr / markdown）。
+    那些是**本地工作流工具，不随包发布** —— 拿它们判红就是喊狼来了。
+
+    真正的射程应该跟**承诺的语义**对齐：说明书对读者承诺「不需要 `pip install` 任何东西」，
+    这个承诺只覆盖**「我让你跑的那些脚本」**。→ 判据 = **被包内文档引用过的 `.py`**。
+
+    于是分两档：
+      · 被文档引用（读者会跑）→ 有第三方依赖 = **判红**（承诺被破坏）
+      · 没被文档引用（本机专用工具）→ 只 **⚠️ 提示**，不判红（但也不静默吞掉）
+
+    另：跳过 `dist/` 等产物目录（与项目既有 `skip_dirs` 约定一致）——
+    否则同一份历史快照会被报 4 遍，噪音会淹没真信号。**跳过会打印出来。**
+
+    返回 `(syntax, third_cited, third_uncited, n_scanned, skipped)`；拿不到标准库清单时返回 None。
+    """
+    import ast as _ast
+    import sys as _sys
+
+    std = set(getattr(_sys, "stdlib_module_names", ()))
+    if not std:
+        return None                      # 老 Python 拿不到标准库清单 → 未查（不假装通过）
+
+    SKIP = {".git", "__pycache__", ".audit_history", "node_modules", ".venv", "dist", "_archive"}
+
+    local = set()                        # 包内自己的模块（互相 import 是正常的）
+    for dp, dirs, fs in os.walk(root):
+        dirs[:] = [d for d in dirs if d not in SKIP]
+        for f in fs:
+            if f.endswith(".py"):
+                local.add(f[:-3])
+
+    # 文档引用过的脚本名 —— 这些才是「读者会跑的」，环境承诺对它们负责
+    cited = set()
+    for doc in ("SKILL.md", "README.md", "USER-GUIDE.md"):
+        p = os.path.join(root, doc)
+        if not os.path.isfile(p):
+            continue
+        for m in re.finditer(r"([A-Za-z_][A-Za-z0-9_\-]*\.py)", io.open(p, encoding="utf-8",
+                                                                      errors="ignore").read()):
+            cited.add(m.group(1))
+
+    syntax, third_cited, third_uncited, scanned, skipped = [], {}, {}, 0, []
+    for dp, dirs, fs in os.walk(root):
+        hit = [d for d in dirs if d in SKIP]
+        if hit:
+            skipped.extend(f"{d}/" for d in hit)
+        dirs[:] = [d for d in dirs if d not in SKIP]
+        for f in sorted(fs):
+            if not f.endswith(".py"):
+                continue
+            scanned += 1
+            p = os.path.join(dp, f)
+            rel = os.path.relpath(p, root).replace("\\", "/")
+            try:
+                tree = _ast.parse(io.open(p, encoding="utf-8", errors="ignore").read())
+            except SyntaxError as e:
+                syntax.append((rel, f"第 {e.lineno} 行：{e.msg}"))
+                continue
+            for node in _ast.walk(tree):
+                if isinstance(node, _ast.Import):
+                    names = [a.name.split(".")[0] for a in node.names]
+                elif isinstance(node, _ast.ImportFrom):
+                    names = [(node.module or "").split(".")[0]] if getattr(node, "level", 0) == 0 else []
+                else:
+                    continue
+                for n in names:
+                    if not n or n in std or n in local:
+                        continue
+                    bucket = third_cited if f in cited else third_uncited
+                    bucket.setdefault(n, []).append(rel)
+    return syntax, third_cited, third_uncited, scanned, sorted(set(skipped))
+
+
+def gate_delivery_env(root):
+    """【门禁 12】交付脚本的**环境承诺**不许撒谎（第二十轮补，2026-09-26）
+
+    ★ 由来：说明书对使用者承诺了「**不需要 `pip install` 任何东西**，脚本只用标准库」。
+      这类承诺和别的文档承诺一样会腐化 —— 哪天有人给某个脚本加一行 `import requests`，
+      文档那句话当场变成假的，而**没有任何东西会报**。
+      → 本门禁守这条：**文档让读者跑的脚本，必须只用标准库、且语法能过。**
+
+    ★ 与门禁 10 的分工：门禁 10 管「文档说去读 X，X 在不在」；
+      本门禁管「文档说不用装东西，脚本是不是真不用装」。**两者都是「文档承诺 ↔ 实际」的核对。**
+
+    三态：拿不到标准库清单（Python < 3.10）→ 报**未查**，不假装通过。
+    """
+    print("【门禁 12】交付脚本的环境承诺（文档说「不用装任何东西」，脚本得真不用）")
+
+    res = _check_py_env(root)
+    if res is None:
+        print("  ⚠️ 当前 Python 拿不到标准库清单（需 3.10+ 的 sys.stdlib_module_names）"
+              " → **未查**，如实报，不计入绿")
+        return None
+    syntax, third_cited, third_uncited, scanned, skipped = res
+
+    if skipped:
+        print(f"  ⏭️ 已跳过产物目录：{'、'.join(skipped)}（历史快照/打包产物，不是源码）")
+    for rel, msg in syntax:
+        print(f"      ❌ 语法错误：`{rel}` {msg} —— 读者拿到一跑就炸")
+    for mod, users in sorted(third_cited.items()):
+        print(f"      ❌ 第三方依赖：`{mod}` —— 被**文档引用过**的脚本用到"
+              f"（{users[0]}），与「不需要 pip 装任何东西」的承诺矛盾")
+    for mod, users in sorted(third_uncited.items()):
+        print(f"      ⚠️ 第三方依赖（**不判红**）：`{mod}` 被 {len(users)} 个本地工具引用"
+              f"（{users[0]}）—— 文档没让读者跑它，属本机工作流工具")
+    print(f"  → 扫了 {scanned} 个脚本（不含已跳过目录）：语法错误 {len(syntax)} 个、"
+          f"文档引用脚本的第三方依赖 {len(third_cited)} 种、本地工具 {len(third_uncited)} 种")
+
+    # —— 自测夹具：① 语法坏的 ② 引第三方且**被文档引用**（该红）③ 引第三方但**没被引用**（只提示）——
+    tmp = tempfile.mkdtemp(prefix="pyenv_")
+    fixture_ok = False
+    try:
+        io.open(os.path.join(tmp, "SKILL.md"), "w", encoding="utf-8").write(
+            "# 假 skill\n\n跑 `scripts/uses_third.py` 渲染。\n")
+        os.makedirs(os.path.join(tmp, "scripts"), exist_ok=True)
+        io.open(os.path.join(tmp, "scripts", "bad_syntax.py"), "w", encoding="utf-8").write("def f(:\n")
+        io.open(os.path.join(tmp, "scripts", "uses_third.py"), "w", encoding="utf-8").write("import requests\n")
+        io.open(os.path.join(tmp, "scripts", "local_only.py"), "w", encoding="utf-8").write("import pymupdf\n")
+        io.open(os.path.join(tmp, "scripts", "clean.py"), "w", encoding="utf-8").write("import json, os, re\n")
+        io.open(os.path.join(tmp, "scripts", "sibling.py"), "w", encoding="utf-8").write("import clean\n")
+        sub = _check_py_env(tmp)
+        got_syn = [r for r, _m in (sub[0] if sub else [])]
+        got_c, got_u = sorted((sub[1] if sub else {}).keys()), sorted((sub[2] if sub else {}).keys())
+        fixture_ok = (got_syn == ["scripts/bad_syntax.py"] and got_c == ["requests"]
+                      and got_u == ["pymupdf"])
+        print(f"  {'✅' if fixture_ok else '❌'} 自测夹具："
+              f"{'语法错判红、文档引用脚本的第三方依赖判红、本地工具只提示、标准库不误报' if fixture_ok else f'期望 [bad_syntax.py]+[requests]+[pymupdf]，实际 {got_syn}+{got_c}+{got_u}'}")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+    ok = (not syntax) and (not third_cited) and fixture_ok
+    if not fixture_ok and not syntax and not third_cited:
+        print("      ⚠️ 夹具没过 = 这道门禁查不出东西，绿了也不代表安全")
+    return ok
+
+
+def _run_gate(label, thunk):
+    """跑一道门禁，**捕获异常并记为失败** —— 一道门禁崩了不该让整份报告消失。
+
+    ★ 由来（第二十轮，2026-09-26）：反证门禁 12 时给渲染器注入一行 `import requests`，
+      门禁 4（管线冒烟）会**真的 import 渲染器** → 抛 `ModuleNotFoundError` →
+      **整个脚本崩掉**，后面 8 道门禁一道都没跑，读者只看到一段 traceback。
+      这是最坏的一类失败：不是「某个检查报红」，而是**报告根本不存在**。
+
+    → 统一包装（`thunk` 是零参可调用，因为各门禁参数不同：有的吃 root、有的吃 index/目录）。
+      语义上注意区分三态：
+      · **崩溃 ≠「未查」**：未查是依赖不在（本包本就不该有），崩溃是检查本身出了问题。
+        崩溃**判红**（它说明这个包有实质毛病，或这个检查有 bug，两种都要人来看）。
+      · 其余门禁**继续跑** —— 一份只有第一道门禁的报告，比没有报告好不了多少。
+    """
+    try:
+        return thunk()
+    except Exception as e:
+        print(f"      ❌ **这道门禁自己崩了**：{type(e).__name__}: {e}")
+        print("         → 记为**失败**（不是「未查」、更不是通过）；其余门禁继续跑")
+        return False
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--skill-root", default=os.path.dirname(HERE))
@@ -1240,23 +1406,26 @@ def main():
     print(f"反模式表：解析到 {len(index)} 条")
     print()
 
-    ok1 = gate_empty_rows(adir, [os.path.join(root, "**", "反模式*.html")])
-    ok2 = gate_matching(root)
-    ok3 = gate_field_integrity(index)
-    ok4 = gate_pipeline(root)
-    ok5 = gate_required_fields(root)
-    ok6 = gate_numbering(root)
+    ok1 = _run_gate("1 空行", lambda: gate_empty_rows(adir, [os.path.join(root, "**", "反模式*.html")]))
+    ok2 = _run_gate("2 匹配回归", lambda: gate_matching(root))
+    ok3 = _run_gate("3 字段齐整", lambda: gate_field_integrity(index))
+    ok4 = _run_gate("4 管线冒烟", lambda: gate_pipeline(root))
+    ok5 = _run_gate("5 必填项承载力", lambda: gate_required_fields(root))
+    ok6 = _run_gate("6 章节编号", lambda: gate_numbering(root))
     print()
     print("【门禁 7】共用词覆盖检查（关键词交集必须有归属决定，不许留白）")
-    ok7 = gate_shared_words(root)
-    ok8 = gate_card_hygiene(root)
-    ok9 = gate_list_consistency(root)
+    ok7 = _run_gate("7 共用词覆盖", lambda: gate_shared_words(root))
+    ok8 = _run_gate("8 卡库卫生", lambda: gate_card_hygiene(root))
+    ok9 = _run_gate("9 取值清单一致", lambda: gate_list_consistency(root))
     print()
     print("【门禁 10】文档引用完整性")
-    ok10 = gate_doc_references(root)
+    ok10 = _run_gate("10 文档引用", lambda: gate_doc_references(root))
     print()
     print("【门禁 11】交付模板字段归宿声明")
-    ok11 = gate_template_render_contract(root)
+    ok11 = _run_gate("11 模板归宿声明", lambda: gate_template_render_contract(root))
+    print()
+    print("【门禁 12】交付脚本的环境承诺")
+    ok12 = _run_gate("12 脚本环境承诺", lambda: gate_delivery_env(root))
 
     print()
     print("=" * 78)
@@ -1264,7 +1433,7 @@ def main():
     _gates = [("1 空行", ok1), ("2 匹配回归", ok2), ("3 字段齐整", ok3),
               ("4 管线冒烟", ok4), ("5 必填项承载力", ok5), ("6 章节编号", ok6),
               ("7 共用词覆盖", ok7), ("8 卡库卫生", ok8), ("9 取值清单一致", ok9),
-              ("10 文档引用", ok10), ("11 模板归宿声明", ok11)]
+              ("10 文档引用", ok10), ("11 模板归宿声明", ok11), ("12 脚本环境承诺", ok12)]
     _unrun = [n for n, r in _gates if r is None]
     _fail = [n for n, r in _gates if r is False]
     allok = not _fail                      # 未查**不判红**，但也**不算绿**
