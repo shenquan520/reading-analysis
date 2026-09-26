@@ -303,10 +303,57 @@ def build_checks(root, export):
         n_note = len(re.findall(r'<div class="note">', html))
         return (n_gap == 1 and n_note == 1), f"gap 元素={n_gap} note 元素={n_note}"
 
+    def r14_laundering_check():
+        """R14 · 替换表不许洗白真违规（第十七轮 T1 立，第十八轮 P2 补进跨轮）
+
+        由来（审核方第十八轮 P2）：这条检查**没有任何收口覆盖**——
+        `sync_export` 里调了，但 `make_evidence` 和 `cross_round_check` 都没调。
+        后果：**它被碰坏时，跨轮 11 项全绿也发现不了它**；
+        而它恰是第十七轮整改的核心成果，也是**已知有结构弱点**的那一个。
+        **最需要被守的检查，反而在盲区里。**
+
+        ★ 同时守住它自己的两个已知弱点（P1）：
+          ① 探针被静默跳过 → 现在会报出来
+          ② **关键探针没被验 → 直接判失守**（不再回绿）
+        所以这里要跑**两件事**：夹具（证明检查器能检）+ 检查本身（真的检）。
+        """
+        se = os.path.join(root, "scripts", "sync_export.py")
+        if not os.path.isfile(se):
+            return SKIP, "本包无 sync_export.py（本地专用工具）→ 未查"
+        spec = importlib.util.spec_from_file_location("se_r14", se)
+        mod = importlib.util.module_from_spec(spec)
+        try:
+            spec.loader.exec_module(mod)
+        except SystemExit:
+            pass
+        except Exception as e:
+            return False, f"❌ sync_export 导入失败（{type(e).__name__}）→ 检查跑不起来"
+        # 夹具：证明检查器三种病害都抓得到（会洗白 / 探针跳过 / 关键探针未验）
+        # ⚠️ 夹具自己会 print 四行——**收住它**，别把跨轮报告弄花（报告里只要结论行）
+        import contextlib
+        import io as _io
+        _buf = _io.StringIO()
+        with contextlib.redirect_stdout(_buf):
+            ok_fx = mod.laundering_fixture_check()
+        _fx_out = _buf.getvalue()
+        if not ok_fx:
+            return False, ("❌ **洗白检查器的夹具不过** → 它可能已经空转，绿的也不可信\n"
+                           + _fx_out.strip())
+        _buf2 = _io.StringIO()
+        with contextlib.redirect_stdout(_buf2):
+            ok = mod.laundering_selftest()
+        if not ok:
+            return False, ("❌ 替换表洗白检查未过（见下文）：\n" + _buf2.getvalue().strip())
+        # 从检查输出里取「实得/应有」那一行，让结论自带可核对的数字
+        m_probe = re.search(r"(\d+)/(\d+) 条探针\*\*实际验过\*\*", _buf2.getvalue())
+        probe_s = m_probe.group(0).replace("**", "") if m_probe else "探针全验过"
+        return True, f"夹具 4/4 ✅ + {probe_s}、无洗白 ✅"
+
     CHECKS = [
         ("R11", "必填项承载力：缺口栏+可迁移原则", r11_required_fields_carried),
         ("R12", "证据文件不早于最后一次提交", r12_evidence_not_stale),
         ("R13", "缺口台账闭环（最值钱产出的状态）", r13_gap_ledger),
+        ("R14", "替换表不许洗白真违规（含它自己的结构性弱点）", r14_laundering_check),
         ("R3", "账本无具体值回声", r3_no_echo_in_ledger),
         ("R5", "9 条真实自述全命中（当时 4/9）", r5_self_reports),
         ("R5", "AP-12 症状不静默消失（含解析器多行合并）", r5_ap12_symptom_present),
