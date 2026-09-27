@@ -99,6 +99,13 @@ input.ca:checked ~ .pane-a,input.cb:checked ~ .pane-b{display:block}
 .cnote .cnote-body{padding:0 14px 12px;color:#4a3f00;line-height:1.7}
 .cnote .cnote-h{display:block;font-weight:700;margin:8px 0 2px;color:#6b5200}
 .cnote .cnote-q{border-left:3px solid #e0c95e;padding-left:8px;margin:4px 0;color:#7a5c00}
+/* 卡原文里的 markdown 表格 → 真表格（2026-09-27）。
+   此前每个表格行被渲染成一行 11.5px 的小字，92 行表格在页面上是**一叠裸竖线**，
+   行列关系全靠读者自己数 —— 这是「文字排版」投诉里最显眼的一处。 */
+.cnote .ctable{border-collapse:collapse;width:100%;margin:8px 0;font-size:12px;line-height:1.55}
+.cnote .ctable th,.cnote .ctable td{border:1px solid #e6d9a8;padding:4px 7px;text-align:left;vertical-align:top}
+.cnote .ctable th{background:#fdf6dd;font-weight:700;color:#6b5200;white-space:nowrap}
+.cnote .ctable td{color:#4a3f00}
 """
 
 def esc(s):
@@ -117,12 +124,60 @@ def _inline(t: str) -> str:
     t = re.sub(r'`([^`]+)`', r'<code>\1</code>', t)
     return t
 
+def _is_sep_row(t: str) -> bool:
+    """markdown 表格的 `|---|---|` 分隔行。"""
+    return bool(re.fullmatch(r'[\-:|\s]+', t)) and '|' in t
+
+def _split_row(t: str):
+    t = t.strip()
+    if t.startswith('|'):
+        t = t[1:]
+    if t.endswith('|'):
+        t = t[:-1]
+    return [c.strip() for c in t.split('|')]
+
+def _table_html(rows) -> str:
+    """把连续的 markdown 表格行渲染成真 `<table>`。
+
+    2026-09-27 新增。此前每行只被塞进一个 11.5px 的 span，
+    表格在页面上是**一叠裸竖线**（本次交付 92 行），行列关系全靠读者自己数。
+    首行当表头（markdown 惯例），`|---|---|` 分隔行丢弃；
+    各行列数不一致时按最宽的一行补空单元格 —— 宁可留空格，也不让表格错位。
+    """
+    body = [_split_row(r) for r in rows if not _is_sep_row(r)]
+    body = [c for c in body if any(x for x in c)]
+    if not body:
+        return ''
+    width = max(len(c) for c in body)
+    body = [c + [''] * (width - len(c)) for c in body]
+    out = ['<table class="ctable">']
+    out.append('<tr>' + ''.join(f'<th>{_inline(x)}</th>' for x in body[0]) + '</tr>')
+    for row in body[1:]:
+        out.append('<tr>' + ''.join(f'<td>{_inline(x)}</td>' for x in row) + '</tr>')
+    out.append('</table>')
+    return '\n'.join(out)
+
 def md_to_html(md: str) -> str:
     out = []
+    rows = []                     # 累积中的表格行
+
+    def flush():
+        if rows:
+            out.append(_table_html(rows))
+            rows.clear()
+
     for ln in md.splitlines():
         t = ln.strip()
         if not t:
+            flush()               # 空行结束表格
             continue
+        # 表格行要**先判、并累积**：判据是「连续的 | 行」，
+        # 不能沿用下面那条 `fullmatch('[\-:|\s]+') then continue`（它会把分隔行直接丢掉，
+        # 于是剩下的表格行各判各的，永远拼不成一张表）。
+        if t.startswith('|') and t.count('|') >= 2:
+            rows.append(t)
+            continue
+        flush()
         if re.fullmatch(r'[\-:|\s]+', t):
             continue
         m = re.match(r'^(#{1,4})\s+(.*)', t)
@@ -132,10 +187,9 @@ def md_to_html(md: str) -> str:
             out.append(f'<div class="cnote-q">{_inline(t.lstrip("> "))}</div>')
         elif t.startswith(('- ', '* ')):
             out.append('• ' + _inline(t[2:]) + '<br>')
-        elif t.startswith('|'):
-            out.append(f'<span style="font-size:11.5px">{_inline(t)}</span><br>')
         else:
             out.append(_inline(t) + '<br>')
+    flush()                       # 文末收尾
     return '\n'.join(out)
 
 def strip_coords(md: str):
@@ -150,16 +204,138 @@ def strip_coords(md: str):
     md = re.sub(r'《[A-Za-z][^》]{2,40}》', '原文', md)
     md = re.sub(r'(?<![A-Za-z0-9])Q\d{1,3}(?![0-9])', '', md)
     md = re.sub(r'（case-\d+\s*）|（见\s*case-\d+）', '', md)
-    md = re.sub(r'\s{2,}', ' ', md)
+    # ⚠️ 只压**空格与制表符**，绝不碰换行（2026-09-27 修）。
+    # 旧写法 `\s{2,}` → ` ` 里 `\s` **包含 `\n`**，于是把 markdown 的块分隔（空行）
+    # 一起吃掉：`标题\n\n正文` 变成 `标题 正文` 一行。
+    # 后果（实测本次交付的 7 张卡）：**290 处段落结构被压平** ——
+    # `## 一、用法`、`---` 分隔线、表格行统统黏进上一行，
+    # 页面上出现字面的 `##`、`---`，标题退化成正文里的一串字符。
+    # 而 `md_to_html()` 是按行判块的（`^#{1,4}` / `^|` / `^>`），行结构一没，它整套逻辑就废了。
+    # 本行的原意只是「删掉坐标后收掉多余空格」，用 `[ \t]` 就够，多吃的换行纯属误伤。
+    md = re.sub(r'[ \t]{2,}', ' ', md)
     md = re.sub(r' ([，。；：、])', r'\1', md)
     return md
 
+_RE_HEADING = re.compile(r'^(#{1,6})\s*(.*)$')
+
+# —— 交付件脱敏（2026-09-27 立）——
+#
+# 为什么需要：交付件由**本地卡文件**渲染，而卡文件天生带着溯源措辞
+# （「（2026-09-05 ○○补充）」这类，全库 **114 处**），以及内部台账名。
+# 这些对读者是纯噪音，也是内部流程信息 ——
+# **实测已交付出去的那份 PDF 里就带着 3 处 + 1 处**（2026-09-27 查）。
+# 判据：交付件面向学生，只该出现「知识」，不该出现「谁补的、记在哪个台账里」。
+#
+# ⚠️ 术语清单**绝不写在本文件里**：本脚本是随包发布的（在 sync_export 的 SCRIPT_FILES 里），
+#    把要藏的称呼写进来，等于亲手把它写进公开包。
+#    改为读**包外配置**——与审计工具 / sync_export 读同一份，
+#    遵循项目既有约定：「列着要藏什么的清单，其本身是泄漏面，必须放包外」。
+#    读不到时（公开包读者：卡库本已脱敏，且没有这份配置）→ 不替换，行为与从前一致。
+_SKILL_CONFIG_DIR_ENV = "SKILL_AUDIT_CONFIG_DIR"
+_delivery_markers_cache = None
+
+
+def _delivery_markers():
+    """从包外配置取内部标记清单（与审计/sync_export 同一套路径推导规则）。"""
+    global _delivery_markers_cache
+    if _delivery_markers_cache is not None:
+        return _delivery_markers_cache
+    markers = []
+    try:
+        import os
+        base = os.environ.get(_SKILL_CONFIG_DIR_ENV) or os.path.expanduser(
+            "~/.workbuddy/skills-config")
+        name = ""
+        skill_md = BASE.parent / 'SKILL.md'
+        if skill_md.is_file():
+            for ln in skill_md.read_text(encoding='utf-8').splitlines()[:40]:
+                m = re.match(r'^\s*name:\s*(.+?)\s*$', ln)
+                if m:
+                    name = m.group(1).strip()
+                    break
+        fp = pathlib.Path(base) / f"{name or BASE.parent.name}.audit.json"
+        if fp.is_file():
+            markers = json.loads(fp.read_text(encoding='utf-8')).get('internal_markers') or []
+    except Exception:
+        markers = []
+    _delivery_markers_cache = [str(m) for m in markers if m]
+    return _delivery_markers_cache
+
+
+def sanitize_delivery(md: str) -> str:
+    """交付件脱敏：删掉内部称呼/内部台账名，保留它们旁边的事实（日期等）。
+
+    处置选的是**删词**而不是**换词**：
+      `（2026-09-05 ○○补充）` → `（2026-09-05 补充）`
+    日期是有用的（读者能看出这条是后续修订），称呼对人没用。
+    换成占位词（如「编者」）在这类句子里读起来更怪，而删词不需要发明任何新措辞 ——
+    「不新增要维护的措辞」比「多一个看起来更完整的说法」便宜。
+    """
+    markers = _delivery_markers()
+    if not markers:
+        return md
+    for m in markers:
+        md = md.replace(m, '')
+    # 清掉删词留下的残迹：空括号、括号内多余空格、标点前的空格
+    md = re.sub(r'[（(]\s*[）)]', '', md)
+    md = re.sub(r'[（(][ \t]+', '（', md)
+    md = re.sub(r'[ \t]+[）)]', '）', md)
+    md = re.sub(r'[ \t]{2,}', ' ', md)
+    md = re.sub(r'[ \t]+([，。；：、])', r'\1', md)
+    return md
+
 def strip_source(md: str):
-    """便利贴显示时切掉「来源与版本」段 + 内部坐标（2026-09-02）。"""
-    cut = md.find('来源与版本')
-    if cut != -1:
-        md = md[:cut]
-    md = strip_coords(md)
+    """便利贴显示时切掉「来源与版本」**那一节** + 内部坐标（2026-09-02 立；09-27 修切法）。
+
+    —— 为什么非修不可 ——
+    旧写法是 `md[:md.find('来源与版本')]`，即**从该处一路切到文件结尾**，不是只切那一节。
+    但卡模板里「来源与版本」是**第六节**（`## 六、来源与版本`），并不是全文最后一节；
+    卡模型演进中还会在它**之后**追加 ⭐ 增强 / 补注 / 新章节 —— 这些全是正文，全被静默删掉。
+
+    实测全库 123 张卡：**45 张（36.6%）**有正文小节落在切点之后
+    （`011-reiteration` 丢 11 节、`016-speech-act` 丢 7 节、`010-polarity-agreement` 丢 5 节）。
+    交付件里读者点开卡看到的是**残缺内容**，而页面上下**没有任何提示** ——
+    这与「B086 索引漏登记」「长难句没渲染」是同一个病：**承诺的 ≠ 实现的**。
+    而且这里比前两次更糟：前两次是**少渲染**，这次是**主动删内容**。
+
+    —— 改后的判据 ——
+    只删「来源与版本」那一节：从它的标题行起，到**下一个同级或更高级标题**之前。
+    节标题允许写成裸行（库里有实例：`024-qixuanwu.md` 写成不带 `##` 的「来源与版本」），
+    裸行按 `##` 级处理。
+
+    这属于「判据要指向事实」的一次应用：**要删的是「一节」，不是「一条尾巴」**。
+    """
+    lines = md.splitlines()
+
+    # ① 定位「来源与版本」所在行（标题 / 裸行都认），取到它的级别
+    start, level = None, None
+    for i, ln in enumerate(lines):
+        if '来源与版本' not in ln:
+            continue
+        m = _RE_HEADING.match(ln.strip())
+        if m:
+            start, level = i, len(m.group(1))
+        else:
+            start, level = i, 2          # 裸行 → 视作 `##` 级
+        break
+
+    if start is not None:
+        # ② 找下一个同级或更高级标题；找不到就切到结尾（说明它本来就是最后一节）
+        end = len(lines)
+        for j in range(start + 1, len(lines)):
+            m = _RE_HEADING.match(lines[j].strip())
+            if m and len(m.group(1)) <= level:
+                end = j
+                break
+        head = lines[:start]
+        # ③ 清掉切点前留下的孤立空行与分隔线，免得出现连续两条 `---`
+        while head and (not head[-1].strip()
+                        or re.fullmatch(r'[-*_]{3,}', head[-1].strip())):
+            head.pop()
+        lines = head + lines[end:]
+
+    md = strip_coords('\n'.join(lines))
+    md = sanitize_delivery(md)
     return md.rstrip() + '\n'
 
 def _card_title(path):
@@ -175,15 +351,21 @@ def _card_title(path):
     return ''
 
 def resolve_card(label: str):
-    """按卡名定位卡文件：B048 / A003 编号优先，其次主题名模糊匹配。"""
+    """按卡名定位卡文件：B048 / A003 / R1 编号优先，其次主题名模糊匹配。"""
     m = re.match(r'^\s*([ABR])(\d{1,3})', label)
     dirs = {'A': 'A-analysis', 'B': 'B-skills', 'R': 'REVIEW'}
     if m:
         d = CARDS_DIR / dirs[m.group(1)]
         if d.exists():
-            for f in sorted(d.glob(m.group(2).zfill(3) + '-*.md')):
+            # ⚠️ R 系卡的文件名**本身就是 `R1-…`**，不是 `001-…`（2026-09-27 修）。
+            # 旧写法一律 `zfill(3)` → 拿 `REVIEW/001-*.md` 去 glob，**永远匹配不到**，
+            # 于是 R1~R5 这 5 张卡在交付件里恒显示「（未找到卡文件）」。
+            # 属于「声明支持、实际死代码」—— 与「长难句声明了没渲染」同一类。
+            # A/B 系仍是三位数字（A003→003-…），保持原样。
+            pat = f'R{m.group(2)}-*.md' if m.group(1) == 'R' else m.group(2).zfill(3) + '-*.md'
+            for f in sorted(d.glob(pat)):
                 return f
-    for sub in ('B-skills', 'A-analysis'):
+    for sub in ('B-skills', 'A-analysis', 'REVIEW'):
         d = CARDS_DIR / sub
         if d.exists():
             for f in sorted(d.glob('*.md')):
