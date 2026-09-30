@@ -2,7 +2,7 @@
 
 把英语阅读题交给 AI 分析的方法卡体系：高考 / 四六级 / 考研通用。
 
-**当前版本：v2.1.6**（2026-09-27）· 更新历史见 [CHANGELOG.md](CHANGELOG.md) 与 [Releases](../../releases)
+**当前版本：v2.1.7**（2026-09-30）· 更新历史见 [CHANGELOG.md](CHANGELOG.md) 与 [Releases](../../releases)
 
 ## 一、解决什么问题
 
