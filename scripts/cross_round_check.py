@@ -401,12 +401,117 @@ def build_checks(root, export):
                        + "、".join(sorted(drift)[:5])
                        + "　→ 卡库**不在同步清单里**，需单独处理（勿裸 cp，先过脱敏）")
 
+    def r16_graph_not_stale():
+        """R16 · 知识网络与卡库同步（不漏卡、不陈旧）（2026-09-30 立）
+
+        —— 由来 ——
+        `references/KNOWLEDGE-GRAPH.md` 的关系条目是**人工写在生成脚本的 `KP` 列表里的**。
+        于是每加一张卡，都得**记得**回来手工补一条 —— 而人不会一直记得：
+        实测停在 **42/127 = 33%**，`B085` / `B086` / `A036` / `R1~R5` 全都没进。
+        **失效是静默的**：没报错、没红叉，那张卡只是从此不在图谱里 ——
+        与「B086 索引漏登记」「R 系卡取不到」是同一个病。
+
+        处置分两层，缺一不可：
+          · **机制**（生成器）：自动把「没被引用的卡」收进文末「待归类」区
+            → 覆盖恒为 100%，漏了的卡**看得见**（那份清单本身就是待办）。
+          · **门禁**（本条）：核「图谱提到的卡号集合 == 卡库实际卡号集合」。
+
+        ★ 判据刻意**不依赖任何指纹算法**。最初想在图谱里存一个「卡库指纹」、
+          门禁重算比对 —— 但那要求**两处实现同一算法**，一旦漂移就会**恒红**，
+          而恒红的门禁等于被弃用的门禁（比没有更坏）。集合比对只依赖文本可比，
+          没有这个陷阱。
+
+        判据：
+          · missing（卡库有、图谱没提）→ 判红：重跑生成器，或把卡补进 `KP`
+          · ghost（图谱提到、卡库没有）→ 判红：陈旧引用，会把读者引到不存在的卡
+        三态：无图谱 / 无卡库 → SKIP（不判红）。
+        """
+        graph = os.path.join(root, "references", "KNOWLEDGE-GRAPH.md")
+        cards_dir = os.path.join(root, "references", "cards")
+        if not os.path.isfile(graph) or not os.path.isdir(cards_dir):
+            return SKIP, "无 knowledge graph 或卡库 → 未查"
+
+        actual = set()
+        for sub, pre in (("A-analysis", "A"), ("B-skills", "B"), ("REVIEW", "R")):
+            d = os.path.join(cards_dir, sub)
+            if not os.path.isdir(d):
+                continue
+            for f in os.listdir(d):
+                if not f.endswith(".md"):
+                    continue
+                # ⚠️ R 系文件名已含前缀（R1-what.md），不能再拼一次
+                m = re.match(r"^(R\d)-", f) if pre == "R" else re.match(r"^(\d{3})-", f)
+                if m:
+                    actual.add(m.group(1) if pre == "R" else pre + m.group(1))
+        if not actual:
+            return SKIP, "卡库为空 → 未查"
+
+        def _cmp(actual_ids, text):
+            """判据本体（抽出来，夹具才能直接调它）。
+
+            ★ 正则的两个边界都是踩过才知道的：
+              · 前界排除字母数字 —— 否则 `AB021` 会被当成 `B021`
+              · 后界**只**排除「数字或字母」，**不能写 `\\b`** ——
+                `B021③` 里 ③ 属 word 字符，用 `\\b` 收尾边界不成立，
+                **整条带章节号的引用都会被漏掉**，于是满屏假阳性「这张卡没进图谱」。
+                图谱里带章节号的引用是常态（`B021③`、`B021三点五`）。
+            """
+            ids = set(re.findall(r"(?<![A-Za-z0-9])([ABR]\d{1,3})(?![0-9A-Za-z])", text))
+            return sorted(set(actual_ids) - ids), sorted(ids - set(actual_ids))
+
+        def _selftest():
+            """夹具：证明这条门禁**不空转**，也不会因边界写错而谎报。
+
+            四个用例覆盖「该报的报得出 / 不该报的不误报」——
+            尤其第 4 个：带章节号的引用**不许**被算成漏卡。
+            """
+            A = {"A001", "A002", "B001", "B021"}
+            out = []
+            mi, gh = _cmp(A, "…见 A001、A002、B001、B021 …")
+            out.append(("齐全不误报", not mi and not gh))
+            mi, gh = _cmp(A, "…见 A001、A002、B001 …")
+            out.append(("漏卡报得出", mi == ["B021"] and not gh))
+            mi, gh = _cmp(A, "…见 A001、A002、B001、B021，另见 R99 …")
+            out.append(("幽灵卡报得出", gh == ["R99"] and not mi))
+            mi, gh = _cmp(A, "…见 A001、A002、B001、**B021③** 与 B021三点五 …")
+            out.append(("带章节号不算漏", not mi))
+            mi, gh = _cmp(A, "…见 AB021 …")
+            out.append(("AB021 不算 B021", "B021" in mi))
+            return out
+
+        cases = _selftest()
+        passed = sum(1 for _n, ok in cases if ok)
+        failed = [n for n, ok in cases if not ok]
+
+        txt = open(graph, encoding="utf-8").read()
+        missing, ghost = _cmp(actual, txt)
+        if missing or ghost:
+            parts = []
+            if missing:
+                parts.append(f"❌ {len(missing)} 张卡在卡库里但图谱没提："
+                             + "、".join(missing[:6])
+                             + "　→ 重跑 `python scripts/render_knowledge_graph.py`")
+            if ghost:
+                parts.append(f"❌ 图谱引用了 {len(ghost)} 个不存在的卡号："
+                             + "、".join(ghost[:6]) + "　→ 陈旧引用，会把读者引到空处")
+            return False, "；".join(parts)
+
+        # 待归类数量：信息性，不判红（没归类不算错，只是待办）
+        m = re.search(r"待归类（[^）]*?(\d+)\s*张", txt)
+        pending = m.group(1) if m else "?"
+        fixture = f"夹具 {passed}/{len(cases)}"
+        if failed:
+            return False, f"❌ 夹具未过：{'、'.join(failed)}（门禁判据本身失守）"
+        return True, (f"夹具 {passed}/{len(cases)} ✅ · 图谱与卡库同步"
+                      f"（{len(actual)} 张卡全部提到；其中 {pending} 张在「待归类」区，属待办不算错）")
+
     CHECKS = [
         ("R11", "必填项承载力：缺口栏+可迁移原则", r11_required_fields_carried),
         ("R12", "证据文件不早于最后一次提交", r12_evidence_not_stale),
         ("R13", "缺口台账闭环（最值钱产出的状态）", r13_gap_ledger),
         ("R14", "替换表不许洗白真违规（含它自己的结构性弱点）", r14_laundering_check),
         ("R15", "开源包卡库不比本地落后", r15_card_library_not_stale),
+        ("R16", "知识网络与卡库同步（不漏卡）", r16_graph_not_stale),
         ("R3", "账本无具体值回声", r3_no_echo_in_ledger),
         ("R5", "9 条真实自述全命中（当时 4/9）", r5_self_reports),
         ("R5", "AP-12 症状不静默消失（含解析器多行合并）", r5_ap12_symptom_present),
