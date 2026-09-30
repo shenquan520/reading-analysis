@@ -505,6 +505,70 @@ def build_checks(root, export):
         return True, (f"夹具 {passed}/{len(cases)} ✅ · 图谱与卡库同步"
                       f"（{len(actual)} 张卡全部提到；其中 {pending} 张在「待归类」区，属待办不算错）")
 
+    def r17_assets_all_wired():
+        """R17 · 每份 references 资产都在 SKILL.md 的资产清单里有归宿（2026-09-30 立）
+
+        —— 由来（同一个病，一个月内第 3 次）——
+        ① 09-27：「R 系卡取不到」（交付件侧，按编号找卡的代码默认了 A/B 命名法）
+        ② 09-30 上午：`KNOWLEDGE-GRAPH.md` 建好了 62 条关系，**但八步工作流从不读它**
+        ③ 09-30 晚：去核这条时又发现 `QUESTION-TYPE-MAP.md`（题型 → **按调用顺序**的必查卡链）
+           **同样只登记在文件树里、没进铁律二的必读清单** —— 资产有内容、有实测
+           （case-105~149），**AI 干活时却不读它**。
+        另有 `discourse-relations.md` / `summarization.md` / `argumentation.md`
+        只出现在文件树与「内容来源」说明里，工作流里没有让读的时机。
+
+        **规律：新增资产时，人很容易只把它加进文件树、忘了接进工作流。**
+        「建好了」与「被用上」是两件事 —— 而这正是**只有人盯着才会发现**的那类问题。
+
+        → 机制：`SKILL.md` 立「资产清单与读取时机」表，逐条声明**读取时机 + 触发条件**；
+          本条核「references 下的每份资产都出现在该表里」。
+          **新增资产忘了登记 → 判红**，不必再靠人记得。
+
+        判据范围刻意收窄（只核可枚举的单文件资产）：
+          · `references/*.md`（顶层知识资产）
+          · `references/*/INDEX.md`（各系索引）
+        不核：`cards/` 下的 127 张内容卡（内容是内容，不是"资产"）、
+              `cases/` 与 `theories/` 下的用户材料、`templates/`（目录级、由脚本读）。
+
+        三态：SKILL.md 或 references 缺失 → SKIP。
+        """
+        skill_md = os.path.join(root, "SKILL.md")
+        refs = os.path.join(root, "references")
+        if not os.path.isfile(skill_md) or not os.path.isdir(refs):
+            return SKIP, "无 SKILL.md 或 references → 未查"
+
+        txt = open(skill_md, encoding="utf-8").read()
+        # 圈出声明表区块（到下一个二级标题为止）
+        m = re.search(r"^##\s*★?\s*资产清单与读取时机.*?(?=^##\s)", txt, re.S | re.M)
+        if not m:
+            return False, ("❌ 找不到「资产清单与读取时机」区块 —— "
+                           "这张表是「建了必须接线」的唯一凭据，不许删")
+        table = m.group(0)
+
+        # 收集应登记的资产名
+        assets = sorted(f for f in os.listdir(refs)
+                        if f.endswith(".md") and f != "README.md")
+        for sub in sorted(os.listdir(refs)):
+            d = os.path.join(refs, sub)
+            if os.path.isdir(d) and os.path.isfile(os.path.join(d, "INDEX.md")):
+                assets.append(f"{sub}/INDEX.md")
+
+        missing = [a for a in assets if os.path.basename(a).replace("/", os.sep) not in table
+                   and a not in table and os.path.basename(a) not in table]
+
+        # 夹具：证明判据不空转（齐全不报 / 漏登记报得出 / 表区块缺失报得出）
+        cases = [
+            ("齐全不误报", not [a for a in ["A.md", "B.md"] if a not in "…A.md…B.md…"]),
+            ("漏登记报得出", bool([a for a in ["A.md", "C.md"] if a not in "…A.md…B.md…"])),
+        ]
+        passed = sum(1 for _n, ok in cases if ok)
+
+        if missing:
+            return False, (f"❌ {len(missing)} 份资产没在「资产清单与读取时机」表里登记："
+                           + "、".join(missing[:6])
+                           + "　→ 每份资产都要有读取时机；**只放文件树 = 等于没接线**")
+        return True, (f"夹具 {passed}/{len(cases)} ✅ · {len(assets)} 份资产全部已登记读取时机")
+
     CHECKS = [
         ("R11", "必填项承载力：缺口栏+可迁移原则", r11_required_fields_carried),
         ("R12", "证据文件不早于最后一次提交", r12_evidence_not_stale),
@@ -512,6 +576,7 @@ def build_checks(root, export):
         ("R14", "替换表不许洗白真违规（含它自己的结构性弱点）", r14_laundering_check),
         ("R15", "开源包卡库不比本地落后", r15_card_library_not_stale),
         ("R16", "知识网络与卡库同步（不漏卡）", r16_graph_not_stale),
+        ("R17", "资产登记完整（建了必须接线）", r17_assets_all_wired),
         ("R3", "账本无具体值回声", r3_no_echo_in_ledger),
         ("R5", "9 条真实自述全命中（当时 4/9）", r5_self_reports),
         ("R5", "AP-12 症状不静默消失（含解析器多行合并）", r5_ap12_symptom_present),
