@@ -130,7 +130,12 @@ def card_oneliner(citation):
     #    也 glob 不到文件，**在这个生成器里恒取不到「一句话」**。
     #    这与「R 系卡在交付件里取不到」是**同一个月内第三次同类缺陷**：
     #    凡是「按编号找卡」的地方，都默认了 A/B 的命名法。
-    prefix = (num + '-') if m.group(1) == 'R' else (num.zfill(3) + '-')
+    #
+    #    ★★ 2026-09-30 补修（更值得记的是这个）：第一版修成了 `num + '-'` = `'1-'`，
+    #    而文件名是 `R1-what.md` —— **少了那个 R**，仍然匹配不到。
+    #    R 系的前缀必须把系列字母算进去：`'R' + num + '-'` = `'R1-'`。
+    prefix = ((m.group(1) + num + '-') if m.group(1) == 'R'
+              else (num.zfill(3) + '-'))
     files = [f for f in sorted(os.listdir(d))
              if f.startswith(prefix) and f.endswith('.md')]
     if not files: return ''
