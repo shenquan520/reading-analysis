@@ -26,6 +26,7 @@
 与 `ap_cases.py` 同一套纪律——它是「判据的回归集」，ap_cases 是「样本的回归集」。
 """
 import argparse
+import fnmatch
 import glob
 import importlib.util
 import io
@@ -556,10 +557,57 @@ def build_checks(root, export):
         missing = [a for a in assets if os.path.basename(a).replace("/", os.sep) not in table
                    and a not in table and os.path.basename(a) not in table]
 
-        # 夹具：证明判据不空转（齐全不报 / 漏登记报得出 / 表区块缺失报得出）
+        # ── ② dist/ 产物：也要有归宿（2026-10-02 扩，外部审核方查出）──
+        #    由来：`dist/knowledge-graph.html` 全库只有 CHANGELOG 提过，
+        #          SKILL / USER-GUIDE / README **一个字都没有** → 「建了没接线」换个地方复发。
+        #
+        #    ⚠️⚠️ 判据必须**收窄**，否则就是喊狼来了（比没门禁更坏）。
+        #    第一版我递归收顶层全部 → 一次报 82 个（含 fuju-batch-001~021 这类**批次产物**、
+        #    card_names_*.json 这类**机器中间物**）→ 噪音，无法执行。
+        #    **收窄为：只核「像报告/视图的东西」**（.html 单件 + 版本说明类 .md），
+        #    且**排除批次/编号类**（`*-batch-数字`、纯数字后缀）与下划线开头的打包目录。
+        #
+        #    判据写成"白名单式"而非"穷举式"：先按规则筛出**候选**，候选必须登记；
+        #    不在候选里的（批次、中间物、打包目录）**本就不要求**。
+        dist = os.path.join(root, "dist")
+        dexcess = []
+        if os.path.isdir(dist):
+            for name in sorted(os.listdir(dist)):
+                full = os.path.join(dist, name)
+                if name.startswith(("_", ".", "~")):
+                    continue
+                if os.path.isdir(full):
+                    continue                      # 目录（analysis/cet/kaoyan/compare/archives）另行说明
+                if not name.endswith((".html", ".md")):
+                    continue                      # json/txt/log 等中间物不要求
+                if re.search(r"-batch-\d+", name) or re.search(r"-\d{3,}\.html$", name):
+                    continue                      # 批次产物：同规格，登记一类即可
+                # 带日期戳（-YYYYMMDD / _YYYYMMDD）的**同类产物**：表里允许用通配登记
+                # （如 `patch-致验收方-*.md`）。判法：抽出表里的通配式，用 fnmatch 逐一比对。
+                # ⚠️ 第一版我用"取 * 前的字符当前缀"——**错了**：日期在名字中间时会取错前缀
+                #    （`patch-致阅读skill-探针可见性-*` → 前缀取成 `patch-致阅读skill-探针可见性-`，
+                #     但表里写的是 `patch-*`），于是真登记了也报红。改用 fnmatch 才稳。
+                pats = re.findall(r"`?dist/([^\s`|]+\.(?:html|md))`?", txt)
+                if name in txt or any(fnmatch.fnmatch(name, p) for p in pats):
+                    continue
+                dexcess.append(name)
+
+        # 夹具：证明这两段判据都不空转（含"批次不误报"——收窄后的关键性质）
+        def _is_candidate(n):
+            if n.startswith(("_", ".")):
+                return False
+            if not n.endswith((".html", ".md")):
+                return False
+            if re.search(r"-batch-\d+", n) or re.search(r"-\d{3,}\.html$", n):
+                return False
+            return True
         cases = [
             ("齐全不误报", not [a for a in ["A.md", "B.md"] if a not in "…A.md…B.md…"]),
             ("漏登记报得出", bool([a for a in ["A.md", "C.md"] if a not in "…A.md…B.md…"])),
+            ("dist 漏报得出", _is_candidate("ghost.html") and "ghost.html" not in "…known.html…"),
+            ("dist 齐全不误报", not (_is_candidate("known.html") and "known.html" not in "…known.html…")),
+            ("批次产物不误报", not _is_candidate("fuju-batch-021.html")),
+            ("打包目录不误报", not _is_candidate("_friend_pkg")),
         ]
         passed = sum(1 for _n, ok in cases if ok)
 
@@ -567,7 +615,12 @@ def build_checks(root, export):
             return False, (f"❌ {len(missing)} 份资产没在「资产清单与读取时机」表里登记："
                            + "、".join(missing[:6])
                            + "　→ 每份资产都要有读取时机；**只放文件树 = 等于没接线**")
-        return True, (f"夹具 {passed}/{len(cases)} ✅ · {len(assets)} 份资产全部已登记读取时机")
+        if dexcess:
+            return False, (f"❌ dist/ 下 {len(dexcess)} 个顶层产物没在「dist/ 产物清单」里登记："
+                           + "、".join(dexcess[:6])
+                           + "　→ 每个产物都要回答「谁看？进不进公开包？」")
+        return True, (f"夹具 {passed}/{len(cases)} ✅ · {len(assets)} 份资产已登记读取时机"
+                      f" · dist 顶层产物已登记")
 
     CHECKS = [
         ("R11", "必填项承载力：缺口栏+可迁移原则", r11_required_fields_carried),
