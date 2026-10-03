@@ -396,11 +396,46 @@ def build_checks(root, export):
                     drift.append(os.path.relpath(p, local_cards))
         if not drift:
             import datetime as _dt
-            return True, (f"卡库未落后（公开包上次同步 "
-                          f"{_dt.datetime.fromtimestamp(cut):%Y-%m-%d %H:%M}）")
-        return False, (f"❌ **{len(drift)} 张卡本地比公开包新**（公开包卡库未跟着走）："
-                       + "、".join(sorted(drift)[:5])
-                       + "　→ 卡库**不在同步清单里**，需单独处理（勿裸 cp，先过脱敏）")
+            msg = (f"卡库未落后（公开包上次同步 "
+                   f"{_dt.datetime.fromtimestamp(cut):%Y-%m-%d %H:%M}）")
+        else:
+            return False, (f"❌ **{len(drift)} 张卡本地比公开包新**（公开包卡库未跟着走）："
+                           + "、".join(sorted(drift)[:5])
+                           + "　→ 卡库**不在同步清单里**，需单独处理（勿裸 cp，先过脱敏）")
+
+        # ── ② 朋友包：也要看落后（2026-10-03 扩，外部审核方指出「R15 射程不含朋友包」）──
+        #    由来：`dist/_friend_pkg` 是**手工搭的**，实测停在 09-10、落后 20+ 天且缺新卡，
+        #          而**所有门禁全绿** —— 因为没人核它。
+        #    ★ 判据同 R15 主体：**用卡片数比，不用 mtime**。
+        #      为什么不看 mtime：重打朋友包会**整体刷新所有文件 mtime**，
+        #      但那不代表内容跟上；而卡片数是**内容级事实**，落后就是落后。
+        #    ★ 三态：朋友包不存在 → SKIP（不是"通过"）。
+        friend = os.path.join(root, "dist", "_friend_pkg")
+        if not os.path.isdir(friend):
+            return SKIP, "朋友包不存在（未打过）→ 未查"
+
+        def _count(p):
+            n = 0
+            for sub, pre in (("A-analysis", "A"), ("B-skills", "B"), ("REVIEW", "R")):
+                d = os.path.join(p, sub)
+                if not os.path.isdir(d):
+                    continue
+                for f in os.listdir(d):
+                    if not f.endswith(".md") or f == "INDEX.md":
+                        continue
+                    if pre == "R":
+                        if re.match(r"^(R\d)-", f):
+                            n += 1
+                    elif re.match(r"^\d{3}-", f):
+                        n += 1
+            return n
+
+        lc = _count(os.path.join(local_cards))
+        fc = _count(os.path.join(friend, "references", "cards"))
+        if fc < lc:
+            return False, (f"❌ **朋友包落后 {lc - fc} 张卡**（本地 {lc} / 朋友包 {fc}）"
+                           "　→ 跑 `python scripts/pack_friend.py --zip` 重建")
+        return True, (msg + f" · 朋友包同步（{fc} 张）")
 
     def r16_graph_not_stale():
         """R16 · 知识网络与卡库同步（不漏卡、不陈旧）（2026-09-30 立）

@@ -172,7 +172,9 @@ CHANGELOG.md             每次进化留痕
 | `dist/阅读skill_第*轮复验_*.md` | **内部**（验收报告存档） | 审核方 | 复验报告副本 |
 | `dist/给ZCode的测试材料-*.md` | **内部** | 人写 | 冷启动测试用料 |
 | `dist/网站同步包-*/` | **内部**（数据中转） | `build_cards_batch.py` | 同步网站用的批次包，不是给人读的 |
-| `dist/_friend_pkg` / `_friend_stage` / `_verify_pkg` | **待刷新** | 打包脚本 | ⚠️ 停在 **09-10**，**缺 B087/B088**；等编者定要不要重打 |
+| `dist/_friend_pkg` | **给读者**（发给朋友的整包） | 打包器 `pack_friend.py`<br><sub>**本地工作区专有，公开包不含**</sub> | ✅ 已脚本化（2026-10-03）。**跑 `--zip` 同时出 zip 到 dist/ 与桌面**；跨轮 R15 核「不比本地落后」 |
+| `dist/_friend_stage` | **内部**（读书任务的搭建舞台） | 手工 | ⚠️ **不是朋友包的另一个版本** —— 内含 `HANDBOOK.md`（四本书分工）等，**独立用途，别合并/别删** |
+| `dist/_verify_pkg` | **已废弃** | — | 是 friend_pkg 的副本（SKILL/USER-GUIDE 的 md5 相同）+ 一个网站同步包；保留备查，不再维护 |
 | `dist/复验输出-*.txt` | **内部** | `make_evidence.py` | 每轮证据文件（跨轮 R12 靠它） |
 | `dist/fuju-batch-*.html` / `kaoyan/` / `compare/` | **批次产物** | 分析管线 | ⚠️ **同规格批量产物，登记"这一类"即可，不逐个登记**（门禁也按此判） |
 

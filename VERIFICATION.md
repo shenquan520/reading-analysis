@@ -153,6 +153,13 @@ python <skill-release-audit>/scripts/skill_audit.py <本包>/github-export --pro
 # ⑤ 差分
 python <skill-release-audit>/scripts/skill_diff.py <本包>/github-export
 
+# ⑤·五 **打朋友包**（2026-10-03 立）
+#    由来：`dist/_friend_pkg` 历来是**手工搭的** → 实测停在 09-10、落后 20+ 天且缺新卡，
+#    而**所有门禁全绿**（因为没人核它）。
+#    ★ 现在改成从源头生成；跨轮 R15 会核「朋友包不比本地落后」，落后即报红。
+#    ⚠️ **必须跑**：漏跑不会当场报错，但下次跨轮会红。
+python <本地工作区>/scripts/pack_friend.py --zip
+
 # ⑥ 同步开源包（用脚本，别用 cp）
 #    ↓ 本地工作区专有（开源包不含下面这些脚本；文档里以 LOCAL-ONLY 段标记）
 python <本地工作区>/scripts/sync_export.py --replace
