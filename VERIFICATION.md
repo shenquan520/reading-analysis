@@ -158,6 +158,8 @@ python <skill-release-audit>/scripts/skill_diff.py <本包>/github-export
 #    而**所有门禁全绿**（因为没人核它）。
 #    ★ 现在改成从源头生成；跨轮 R15 会核「朋友包不比本地落后」，落后即报红。
 #    ⚠️ **必须跑**：漏跑不会当场报错，但下次跨轮会红。
+#    ⚠️ 默认打到 ，**不会碰旧包**（旧版默认 rmtree，已改）
+#    确认差异后再覆盖：python <本地工作区>/scripts/pack_friend.py --force --out dist/_friend_pkg --zip
 python <本地工作区>/scripts/pack_friend.py --zip
 
 # ⑥ 同步开源包（用脚本，别用 cp）

@@ -30,7 +30,8 @@
 
 ### 方式 C：作为资料库参考（API / 框架）
 - `SKILL.md` 作为 system prompt
-- `references/cards/`（127 张方法卡）挂成知识库（RAG）—— 卡库是这套东西的主体，146 个文件 / 850 KB
+- `references/cards/`（129 张方法卡）挂成知识库（RAG）—— 卡库是这套东西的主体
+  <sub>（**别在这里写文件数与体积** —— 卡库还在长，写死的数字必然过期；要看实际大小，对本机的卡库目录跑一次 `du -sh` 即可）</sub>
 - `references/QUESTION-TYPE-MAP.md` 是「题型 → 该查哪张卡」的对照表
 
 适合自己搭 agent 的人。
