@@ -208,3 +208,27 @@
 | 时间 temporal | 并列类·连贯（汉语时间推进归连贯） |
 | （Halliday 无对应） | 转折类·假转 |
 分析英文文本用 Halliday 骨架；与中文经验对照时用邢福义三分。
+
+---
+
+## ⭐ `so...that` 与 `to the point that`：程度，不是结果（2026-10-31 补）
+
+**看到 `to the point that` / `so...that`，先别当「结果」读。**
+
+| 它回答什么 | 例 |
+|---|---|
+| **到了什么地步**（程度）| `improved **dramatically**, **to the point that** they can solve major outstanding problems` |
+
+**三条判据**：
+
+1. **它回答「到了什么地步」，不回答「因此发生了什么」** ——
+   后者是 `so that`（目的）或 `therefore`（结果）的活。
+2. **程度由前面的副词/形容词承担** ——
+   `improved **dramatically**` 里的 dramatically 才是「程度」，
+   `to the point that` 是把那个程度**延展成一个可观察的界限**。
+3. **改写法检验**：
+   - 能换成 `so much that` / 「到了……的地步」 → **程度**
+   - 换成「因此……」更顺 → **结果**
+
+**⚠️ 为什么容易错**：`to the point that` 后面常跟一个"看起来像结果"的从句，
+但它真正在说的是「**前面那个程度达到了什么界限**」。
