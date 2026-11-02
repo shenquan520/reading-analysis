@@ -138,6 +138,12 @@ python scripts/cross_round_check.py          # 8 项，全绿才继续
 # ① 报告目录有没有新报告（可能没被投喂）
 ls <报告目录>
 
+# ①·五 **卡片三处一致性**（新写或改过卡才跑；机器只挑信号，判断仍靠人）
+#      查：标题 / 一句话摘要 / 正文首句 的极性与范围是否打架
+#      由来：B093 摘要写了「只能并列」，而它的标题和正文都说「读不出」——
+#            摘要是所有人唯一会读的那一行，错了危害最大
+python scripts/check_card_consistency.py
+
 # ② 反模式系统门禁（7 道）
 python scripts/verify_anti_patterns.py
 
