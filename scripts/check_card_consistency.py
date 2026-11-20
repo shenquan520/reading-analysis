@@ -172,7 +172,13 @@ def main():
         if not os.path.isdir(d):
             continue
         for f in sorted(os.listdir(d)):
-            if not f.endswith(".md") or f == "INDEX.md":
+            # ★ 2026-11-20 修：原来只排除 "INDEX.md"，
+            # 但 R 系的索引文件叫 "00-index.md"（小写带前缀），
+            # 于是它被当成一张卡算进去，扫出 137 张（真实 136）。
+            # 口径改成与卡数统计一致：只认 3 位数字卡 / R+数字卡。
+            if not f.endswith(".md"):
+                continue
+            if not (re.match(r"^\d{3}-", f) or re.match(r"^R\d-", f)):
                 continue
             total += 1
             path = os.path.join(d, f)
